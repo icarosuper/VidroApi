@@ -2,6 +2,24 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Domain entity conventions
+
+- **Public constructor** with required fields + `DateTimeOffset now` as last parameter (passed up via `: base(now)`)
+- **`[ExcludeFromCodeCoverage] private Entity() { }`** — parameterless constructor for EF Core
+- **`init` for immutable properties** (e.g. `Username`, `CreatedAt`, `Id`); **`private set` for mutable ones** (e.g. `Email`, `PasswordHash`, counters). EF Core hydrates both via reflection — no `public set` needed.
+- **`private List<T> _items = []; public IReadOnlyList<T> Items => _items.AsReadOnly();`** for navigation collections — external code can only read, mutations go through domain methods
+- **Domain methods for state mutations** — e.g. `video.MarkAsReady(...)`, `channel.IncrementFollowerCount()`, `user.ChangeEmail(...)`. Keeps logic encapsulated instead of spreading it across slices.
+- **No value objects** unless a type has real validation/equality rules (none identified yet)
+- **Base classes:** `BaseEntity` (Id + CreatedAt, both `init`) and `BaseAuditableEntity : BaseEntity` (+ `UpdatedAt` with `private set`, mutated via `SetUpdatedAt(now)`)
+- **Errors live in `Domain/Errors/`**. Two kinds:
+  - `CommonErrors` — generic, parameterized: `CommonErrors.NotFound("User", id)`, `CommonErrors.Unauthorized()`, `CommonErrors.Forbidden()`
+  - Per-entity files — specific errors for that entity only: `UserErrors.InvalidCredentials()`, `ChannelErrors.NotOwner()`, etc.
+  - Each `Error` carries a `Code`, `Message`, and `ErrorType` (enum). The Api layer maps `ErrorType` to HTTP status codes in `ResultExtensions`.
+
+## Language
+
+All code must be in English: class names, method names, variables, test names, log messages, comments, and XML docs. The only exception is commit messages, which are written in Portuguese.
+
 ## Working style
 
 After each implementation step:
@@ -46,7 +64,7 @@ Domain ← Application ← Infrastructure ← Api
 
 - **Domain** — entities, enums, `DomainError`. No external dependencies.
 - **Application** — one file per feature (slice). Defines interfaces (`IMinioService`, `IJobQueueService`) that Infrastructure implements. No EF Core here.
-- **Infrastructure** — EF Core `AppDbContext`, `MinioService`, `RedisJobQueueService`, `TokenService`, settings classes. All external I/O lives here.
+- **Infrastructure** — EF Core `AppDbContext`, `MinioService`, `RedisJobQueueService`, `TokenService`, `DateTimeProvider`, settings classes. All external I/O lives here. Entity mappings use `IEntityTypeConfiguration<T>` (one file per entity in `Persistence/Configurations/`). `OnModelCreating` applies `DeleteBehavior.Restrict` globally for all FKs.
 - **Api** — `Program.cs` only. Registers DI, middleware, JWT, and calls `FeatureName.MapEndpoint(app)` for every slice.
 
 ### Vertical Slice pattern
@@ -56,15 +74,30 @@ Every slice in `Application/` follows this structure:
 ```csharp
 public static class FeatureName
 {
-    public record Request(...) : IRequest<Response>;
+    public record Request(...) : IRequest<Result<Response, Error>>;
     public record Response(...);
     public class Validator : AbstractValidator<Request> { ... }
-    public class Handler(...) : IRequestHandler<Request, Response> { ... }
+    public class Handler(IDateTimeProvider clock, ...) : IRequestHandler<Request, Result<Response, Error>> { ... }
     public static void MapEndpoint(IEndpointRouteBuilder app) => app.MapPost(...);
 }
 ```
 
-Validation runs automatically via `ValidationBehavior<,>` (MediatR pipeline). FluentValidation exceptions are caught by `ExceptionMiddleware` and returned as 400.
+- Handlers return `Result<Response, Error>` (CSharpFunctionalExtensions). Use `Result.Success(response)` or `DomainError.X.Y()` (which is an `Error`).
+- Validation runs automatically via `ValidationBehavior<,>` (MediatR pipeline). FluentValidation exceptions are caught by middleware and returned as 400.
+- In endpoint handlers call `.ToApiResult()` (from `Api/Extensions/ResultExtensions.cs`) to convert the result to `IResult`.
+- `IDateTimeProvider` is injected into handlers that need the current time, which is then passed to entity constructors.
+
+### Response format
+
+```json
+// Success (200/201)
+{ "data": { ... } }
+
+// Error (400/401/403/404/409)
+{ "code": "user.not_found", "message": "User with id '...' was not found." }
+```
+
+`ApiResponse` and `ResultExtensions` live in `Api/Common/` and `Api/Extensions/`.
 
 ### Integration with VideoProcessor (Go)
 
