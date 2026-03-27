@@ -40,20 +40,20 @@ After each implementation step:
 dotnet build
 
 # Run API (development)
-dotnet run --project src/VidaroApi.Api
+dotnet run --project src/VidroApi.Api
 
 # All tests
 dotnet test
 
 # Single test class
-dotnet test tests/VidaroApi.UnitTests --filter "FullyQualifiedName~ClassName"
+dotnet test tests/VidroApi.UnitTests --filter "FullyQualifiedName~ClassName"
 
 # Single test method
-dotnet test tests/VidaroApi.UnitTests --filter "FullyQualifiedName~ClassName.MethodName"
+dotnet test tests/VidroApi.UnitTests --filter "FullyQualifiedName~ClassName.MethodName"
 
 # EF Core migrations (always specify both projects)
-dotnet ef migrations add <Name> --project src/VidaroApi.Infrastructure --startup-project src/VidaroApi.Api --output-dir Persistence/Migrations
-dotnet ef database update --project src/VidaroApi.Infrastructure --startup-project src/VidaroApi.Api
+dotnet ef migrations add <Name> --project src/VidroApi.Infrastructure --startup-project src/VidroApi.Api --output-dir Persistence/Migrations
+dotnet ef database update --project src/VidroApi.Infrastructure --startup-project src/VidroApi.Api
 
 # Start dependencies
 docker-compose up -d postgres redis minio
@@ -61,7 +61,7 @@ docker-compose up -d postgres redis minio
 
 ## Architecture
 
-**Clean Architecture + Vertical Slice Architecture.** Each feature lives in a single self-contained file under `src/VidaroApi.Application/<Domain>/FeatureName.cs`.
+**Clean Architecture + Vertical Slice Architecture.** Each feature lives in a single self-contained file under `src/VidroApi.Application/<Domain>/FeatureName.cs`.
 
 ### Project dependency flow
 
