@@ -1,0 +1,50 @@
+using Microsoft.Extensions.Options;
+using Minio;
+using Minio.DataModel.Args;
+using VidroApi.Application.Abstractions;
+using VidroApi.Infrastructure.Settings;
+
+namespace VidroApi.Infrastructure.Services;
+
+public class MinioService(IMinioClient minioClient, IOptions<MinioSettings> options) : IMinioService
+{
+    private readonly MinioSettings _settings = options.Value;
+
+    public async Task<(string Url, DateTimeOffset ExpiresAt)> GenerateUploadUrlAsync(
+        string objectKey, TimeSpan ttl, CancellationToken ct = default)
+    {
+        var expiresAt = DateTimeOffset.UtcNow.Add(ttl);
+        var url = await minioClient.PresignedPutObjectAsync(
+            new PresignedPutObjectArgs()
+                .WithBucket(_settings.BucketName)
+                .WithObject(objectKey)
+                .WithExpiry((int)ttl.TotalSeconds));
+        return (url, expiresAt);
+    }
+
+    public async Task<string> GenerateDownloadUrlAsync(
+        string objectKey, TimeSpan ttl, CancellationToken ct = default)
+    {
+        return await minioClient.PresignedGetObjectAsync(
+            new PresignedGetObjectArgs()
+                .WithBucket(_settings.BucketName)
+                .WithObject(objectKey)
+                .WithExpiry((int)ttl.TotalSeconds));
+    }
+
+    public async Task<bool> ObjectExistsAsync(string objectKey, CancellationToken ct = default)
+    {
+        try
+        {
+            await minioClient.StatObjectAsync(
+                new StatObjectArgs()
+                    .WithBucket(_settings.BucketName)
+                    .WithObject(objectKey), ct);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+}
