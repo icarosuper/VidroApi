@@ -4,6 +4,8 @@ namespace VidaroApi.Domain.Entities;
 
 public class VideoMetadata : BaseEntity
 {
+    public const int CodecMaxLength = 50;
+
     // ReSharper disable once UnusedMember.Local
     [ExcludeFromCodeCoverage]
     private VideoMetadata() { }
@@ -12,6 +14,10 @@ public class VideoMetadata : BaseEntity
         int width, int height, string codec, DateTimeOffset now)
         : base(now)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(codec);
+        if (codec.Length > CodecMaxLength)
+            throw new ArgumentException($"Codec cannot exceed {CodecMaxLength} characters.", nameof(codec));
+
         VideoId = videoId;
         FileSizeBytes = fileSizeBytes;
         DurationSeconds = durationSeconds;

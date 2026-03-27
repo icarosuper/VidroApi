@@ -4,6 +4,9 @@ namespace VidaroApi.Domain.Entities;
 
 public class Channel : BaseAuditableEntity
 {
+    public const int NameMaxLength = 100;
+    public const int DescriptionMaxLength = 500;
+
     // ReSharper disable once UnusedMember.Local
     [ExcludeFromCodeCoverage]
     private Channel() { }
@@ -11,6 +14,12 @@ public class Channel : BaseAuditableEntity
     public Channel(Guid userId, string name, string? description, DateTimeOffset now)
         : base(now)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        if (name.Length > NameMaxLength)
+            throw new ArgumentException($"Name cannot exceed {NameMaxLength} characters.", nameof(name));
+        if (description is { Length: > DescriptionMaxLength })
+            throw new ArgumentException($"Description cannot exceed {DescriptionMaxLength} characters.", nameof(description));
+
         UserId = userId;
         Name = name;
         Description = description;
@@ -24,6 +33,12 @@ public class Channel : BaseAuditableEntity
 
     public void UpdateDetails(string name, string? description, DateTimeOffset now)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        if (name.Length > NameMaxLength)
+            throw new ArgumentException($"Name cannot exceed {NameMaxLength} characters.", nameof(name));
+        if (description is { Length: > DescriptionMaxLength })
+            throw new ArgumentException($"Description cannot exceed {DescriptionMaxLength} characters.", nameof(description));
+
         Name = name;
         Description = description;
         SetUpdatedAt(now);

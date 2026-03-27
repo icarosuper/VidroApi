@@ -4,6 +4,8 @@ namespace VidaroApi.Domain.Entities;
 
 public class RefreshToken : BaseEntity
 {
+    public const int TokenMaxLength = 256;
+
     // ReSharper disable once UnusedMember.Local
     [ExcludeFromCodeCoverage]
     private RefreshToken() { }
@@ -11,6 +13,10 @@ public class RefreshToken : BaseEntity
     public RefreshToken(Guid userId, string token, DateTimeOffset expiresAt, DateTimeOffset now)
         : base(now)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(token);
+        if (token.Length > TokenMaxLength)
+            throw new ArgumentException($"Token cannot exceed {TokenMaxLength} characters.", nameof(token));
+
         UserId = userId;
         Token = token;
         ExpiresAt = expiresAt;

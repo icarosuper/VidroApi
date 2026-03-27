@@ -5,6 +5,9 @@ namespace VidaroApi.Domain.Entities;
 
 public class Video : BaseAuditableEntity
 {
+    public const int TitleMaxLength = 200;
+    public const int DescriptionMaxLength = 2000;
+
     // ReSharper disable once UnusedMember.Local
     [ExcludeFromCodeCoverage]
     private Video() { }
@@ -13,6 +16,13 @@ public class Video : BaseAuditableEntity
         VideoVisibility visibility, DateTimeOffset now)
         : base(now)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+        ArgumentNullException.ThrowIfNull(tags);
+        if (title.Length > TitleMaxLength)
+            throw new ArgumentException($"Title cannot exceed {TitleMaxLength} characters.", nameof(title));
+        if (description is { Length: > DescriptionMaxLength })
+            throw new ArgumentException($"Description cannot exceed {DescriptionMaxLength} characters.", nameof(description));
+
         ChannelId = channelId;
         Title = title;
         Description = description;
@@ -37,6 +47,13 @@ public class Video : BaseAuditableEntity
     public void UpdateDetails(string title, string? description, List<string> tags,
         VideoVisibility visibility, DateTimeOffset now)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+        ArgumentNullException.ThrowIfNull(tags);
+        if (title.Length > TitleMaxLength)
+            throw new ArgumentException($"Title cannot exceed {TitleMaxLength} characters.", nameof(title));
+        if (description is { Length: > DescriptionMaxLength })
+            throw new ArgumentException($"Description cannot exceed {DescriptionMaxLength} characters.", nameof(description));
+
         Title = title;
         Description = description;
         Tags = tags;

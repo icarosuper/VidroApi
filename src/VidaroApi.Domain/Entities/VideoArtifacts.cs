@@ -4,6 +4,8 @@ namespace VidaroApi.Domain.Entities;
 
 public class VideoArtifacts : BaseEntity
 {
+    public const int PathMaxLength = 500;
+
     // ReSharper disable once UnusedMember.Local
     [ExcludeFromCodeCoverage]
     private VideoArtifacts() { }
@@ -12,6 +14,20 @@ public class VideoArtifacts : BaseEntity
         string hlsPath, string audioPath, List<string> thumbnailPaths, DateTimeOffset now)
         : base(now)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(processedPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(previewPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(hlsPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(audioPath);
+        ArgumentNullException.ThrowIfNull(thumbnailPaths);
+        if (processedPath.Length > PathMaxLength)
+            throw new ArgumentException($"ProcessedPath cannot exceed {PathMaxLength} characters.", nameof(processedPath));
+        if (previewPath.Length > PathMaxLength)
+            throw new ArgumentException($"PreviewPath cannot exceed {PathMaxLength} characters.", nameof(previewPath));
+        if (hlsPath.Length > PathMaxLength)
+            throw new ArgumentException($"HlsPath cannot exceed {PathMaxLength} characters.", nameof(hlsPath));
+        if (audioPath.Length > PathMaxLength)
+            throw new ArgumentException($"AudioPath cannot exceed {PathMaxLength} characters.", nameof(audioPath));
+
         VideoId = videoId;
         ProcessedPath = processedPath;
         PreviewPath = previewPath;

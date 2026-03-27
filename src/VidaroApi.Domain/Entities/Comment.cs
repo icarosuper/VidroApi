@@ -4,6 +4,8 @@ namespace VidaroApi.Domain.Entities;
 
 public class Comment : BaseAuditableEntity
 {
+    public const int ContentMaxLength = 1000;
+
     // ReSharper disable once UnusedMember.Local
     [ExcludeFromCodeCoverage]
     private Comment() { }
@@ -11,6 +13,10 @@ public class Comment : BaseAuditableEntity
     public Comment(Guid videoId, Guid userId, string content, DateTimeOffset now)
         : base(now)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(content);
+        if (content.Length > ContentMaxLength)
+            throw new ArgumentException($"Content cannot exceed {ContentMaxLength} characters.", nameof(content));
+
         VideoId = videoId;
         UserId = userId;
         Content = content;
@@ -24,6 +30,10 @@ public class Comment : BaseAuditableEntity
 
     public void Edit(string content, DateTimeOffset now)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(content);
+        if (content.Length > ContentMaxLength)
+            throw new ArgumentException($"Content cannot exceed {ContentMaxLength} characters.", nameof(content));
+
         Content = content;
         SetUpdatedAt(now);
     }
