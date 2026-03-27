@@ -151,6 +151,7 @@ public static class FeatureName
 ```
 
 - **Order within a slice:** Request → Response → Validator → MapEndpoint → Handler.
+- **`Request` vs `Command`** — use `Request : IRequest<...>` when the body is the only input source. When the handler needs data from multiple sources (e.g. body + JWT claims), use `Request` for the HTTP body and a separate `Command : IRequest<...>` for the Mediator message; the endpoint constructs `Command` from both. Example: `SignOut` has `Request { RefreshToken }` (body) and `Command { UserId, RefreshToken }` (body + claim).
 - **Request/Response format:** `record` with `init` properties (one per line), not positional records.
 - **No magic numbers in Validators** — use constants from the domain entity (e.g. `User.UsernameMinLength`, `User.PasswordMinLength`). Add the same constants to the entity constructor guards too.
 - **Endpoint registration is automatic** — `app.MapAllEndpoints()` in `Program.cs` scans the assembly by reflection and calls every public static `MapEndpoint` method. Never register endpoints manually.
