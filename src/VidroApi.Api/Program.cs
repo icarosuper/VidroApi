@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using VidroApi.Api.Extensions;
 using VidroApi.Api.Middleware;
 using VidroApi.Application;
 using VidroApi.Infrastructure;
@@ -12,7 +13,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((ctx, cfg) => cfg.ReadFrom.Configuration(ctx.Configuration));
 
 // Application + Infrastructure
-builder.Services.AddApplication();
+builder.Services.AddMediator(options => options.ServiceLifetime = ServiceLifetime.Scoped);
+builder.Services.AddApplication(typeof(Program).Assembly);
 builder.Services.AddInfrastructure(builder.Configuration);
 
 // Settings validation
@@ -74,7 +76,11 @@ app.UseMiddleware<ExceptionMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Feature endpoints registered here as slices are implemented:
-// RegisterUser.MapEndpoint(app);
+app.MapAllEndpoints();
+
+app.Lifetime.ApplicationStarted.Register(() =>
+    Log.Information("Application listening on: {Urls}", string.Join(", ", app.Urls)));
 
 app.Run();
+
+public partial class Program;

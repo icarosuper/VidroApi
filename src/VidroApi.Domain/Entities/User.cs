@@ -4,8 +4,10 @@ namespace VidroApi.Domain.Entities;
 
 public class User : BaseEntity
 {
-    public const int UsernameMaxLength = 50;
+    public const int UsernameMinLength = 3;
+    public const int UsernameMaxLength = 25;
     public const int EmailMaxLength = 255;
+    public const int PasswordMinLength = 8;
 
     // ReSharper disable once UnusedMember.Local
     [ExcludeFromCodeCoverage]

@@ -37,6 +37,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **No staging branches** — no `staging/vX.Y.Z` branches. Rollback is done by redeploying a previous tag.
 - **Coordination with VidroProcessor** — when a change affects the shared contract (MinIO paths, Redis queue name, webhook format), both repos must be tagged and deployed together.
 
+## Code readability
+
+- **Named variables over inline expressions** — always assign the result of a check or query to a descriptively named variable before using it in a condition. Never inline results directly into `if` statements. This applies to both async calls and boolean logic.
+  ```csharp
+  // ✅
+  var emailAlreadyRegistered = await db.Users.AnyAsync(u => u.Email == normalizedEmail, ct);
+  if (emailAlreadyRegistered) return Errors.User.EmailAlreadyInUse();
+
+  var isTokenExpiredOrRevoked = token.IsRevoked || token.ExpiresAt < clock.UtcNow;
+  if (isTokenExpiredOrRevoked) return Errors.RefreshToken.Invalid();
+
+  // ❌
+  if (await db.Users.AnyAsync(u => u.Email == normalizedEmail, ct)) return Errors.User.EmailAlreadyInUse();
+  if (token.IsRevoked || token.ExpiresAt < clock.UtcNow) return Errors.RefreshToken.Invalid();
+  ```
+- **Extract complex or long logic into private methods** — if a block of code needs a comment to explain what it does, it should be a method with a name that explains it instead.
+- **Method and variable names must express intent** — the name should answer "what" not "how". Avoid abbreviations, single-letter names (outside loops), and generic names like `result`, `data`, `temp`.
+
+## Testing conventions
+
+- **Domain entities must always have unit tests** — placed in `tests/VidroApi.UnitTests/Domain/<EntityName>Tests.cs`.
+- **Features must always have integration tests** — placed in `tests/VidroApi.IntegrationTests/<Domain>/<FeatureName>Tests.cs`.
+- Integration tests use `ApiFactory` (`WebApplicationFactory<Program>` + Testcontainers PostgreSQL) and exercise the full HTTP stack.
+- Use `IClassFixture<ApiFactory>` to share the container across tests in a class. Generate unique usernames/emails per test (e.g. `Guid.NewGuid()`) to avoid inter-test conflicts.
+- Assert on both HTTP status code and response body (`code` field for errors, `data` for success).
+
 ## Language
 
 All code must be in English: class names, method names, variables, test names, log messages, comments, and XML docs. The only exception is commit messages, which are written in Portuguese.
@@ -75,7 +101,9 @@ docker-compose up -d postgres redis minio
 
 ## Architecture
 
-**Clean Architecture + Vertical Slice Architecture.** Each feature lives in a single self-contained file under `src/VidroApi.Application/<Domain>/FeatureName.cs`.
+**Clean Architecture + Vertical Slice Architecture.** Each feature lives in a single self-contained file under `src/VidroApi.Api/Features/<Domain>/FeatureName.cs`.
+
+Features live in the Api project (not Application) so they can freely access `AppDbContext`, BCrypt, and other Infrastructure types without creating circular dependencies. Application holds shared abstractions, behaviors, and `PagedResult` only.
 
 ### Project dependency flow
 
@@ -90,18 +118,44 @@ Domain ← Application ← Infrastructure ← Api
 
 ### Vertical Slice pattern
 
-Every slice in `Application/` follows this structure:
+Every slice in `Api/Features/<Domain>/` follows this structure — in this exact order:
 
 ```csharp
 public static class FeatureName
 {
-    public record Request(...) : IRequest<Result<Response, Error>>;
-    public record Response(...);
+    public record Request : IRequest<Result<Response, Error>>
+    {
+        public string Foo { get; init; } = null!;
+    }
+
+    public record Response
+    {
+        public Guid Id { get; init; }
+    }
+
     public class Validator : AbstractValidator<Request> { ... }
-    public class Handler(IDateTimeProvider clock, ...) : IRequestHandler<Request, Result<Response, Error>> { ... }
-    public static void MapEndpoint(IEndpointRouteBuilder app) => app.MapPost(...);
+
+    public static void MapEndpoint(IEndpointRouteBuilder app) =>
+        app.MapPost("/v1/...", async (Request req, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(req, ct);
+            return result.ToApiResult(StatusCodes.Status201Created);
+        });
+
+    public class Handler(AppDbContext db, IDateTimeProvider clock, ...)
+        : IRequestHandler<Request, Result<Response, Error>>
+    {
+        public async Task<Result<Response, Error>> Handle(Request req, CancellationToken ct) { ... }
+    }
 }
 ```
+
+- **Order within a slice:** Request → Response → Validator → MapEndpoint → Handler.
+- **`Request` vs `Command`** — use `Request : IRequest<...>` when the body is the only input source. When the handler needs data from multiple sources (e.g. body + JWT claims), use `Request` for the HTTP body and a separate `Command : IRequest<...>` for the Mediator message; the endpoint constructs `Command` from both. Example: `SignOut` has `Request { RefreshToken }` (body) and `Command { UserId, RefreshToken }` (body + claim).
+- **Request/Response format:** `record` with `init` properties (one per line), not positional records.
+- **No magic numbers in Validators** — use constants from the domain entity (e.g. `User.UsernameMinLength`, `User.PasswordMinLength`). Add the same constants to the entity constructor guards too.
+- **Endpoint registration is automatic** — `app.MapAllEndpoints()` in `Program.cs` scans the assembly by reflection and calls every public static `MapEndpoint` method. Never register endpoints manually.
+- **`result.ToApiResult(statusCode)`** maps `Result<T, Error>` to the correct HTTP response — success wraps in `{ "data": ... }`, failure maps `ErrorType` to status code and returns `{ "code": ..., "message": ... }`.
 
 - Handlers return `Result<Response, Error>` (CSharpFunctionalExtensions). Use `Result.Success(response)` or `DomainError.X.Y()` (which is an `Error`).
 - Validation runs automatically via `ValidationBehavior<,>` (MediatR pipeline). FluentValidation exceptions are caught by middleware and returned as 400.

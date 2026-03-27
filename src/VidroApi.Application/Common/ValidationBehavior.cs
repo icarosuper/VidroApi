@@ -1,19 +1,19 @@
 using FluentValidation;
-using MediatR;
+using Mediator;
 
 namespace VidroApi.Application.Common;
 
-public class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidator<TRequest>> validators)
-    : IPipelineBehavior<TRequest, TResponse>
-    where TRequest : notnull
+public class ValidationBehavior<TMessage, TResponse>(IEnumerable<IValidator<TMessage>> validators)
+    : IPipelineBehavior<TMessage, TResponse>
+    where TMessage : IMessage
 {
-    public async Task<TResponse> Handle(
-        TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken ct)
+    public async ValueTask<TResponse> Handle(
+        TMessage message, MessageHandlerDelegate<TMessage, TResponse> next, CancellationToken ct)
     {
         if (!validators.Any())
-            return await next(ct);
+            return await next(message, ct);
 
-        var context = new ValidationContext<TRequest>(request);
+        var context = new ValidationContext<TMessage>(message);
 
         var failures = validators
             .Select(v => v.Validate(context))
@@ -24,6 +24,6 @@ public class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidator<TReq
         if (failures.Count > 0)
             throw new ValidationException(failures);
 
-        return await next(ct);
+        return await next(message, ct);
     }
 }

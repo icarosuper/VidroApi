@@ -12,5 +12,8 @@ public static partial class Errors
 
         public static Error IncorrectPassword() =>
             new("user.incorrect_password", "The informed password is incorrect.", ErrorType.Unauthorized);
+
+        public static Error InvalidCredentials() =>
+            new("user.invalid_credentials", "The provided credentials are invalid.", ErrorType.Unauthorized);
     }
 }
