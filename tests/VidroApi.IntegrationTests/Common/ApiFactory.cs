@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.PostgreSql;
+using VidroApi.Application.Abstractions;
 using VidroApi.Infrastructure.Persistence;
 
 #pragma warning disable CS0618
@@ -31,7 +32,25 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("MinIO:BucketName", "test-bucket");
         builder.UseSetting("MinIO:UploadUrlTtlHours", "1");
         builder.UseSetting("ChannelSettings:MaxChannelsPerUser", "10");
+        builder.UseSetting("VideoSettings:MaxTagsPerVideo", "10");
+        builder.UseSetting("VideoSettings:ReconciliationIntervalMinutes", "60");
         builder.UseSetting("Webhook:Secret", "test-webhook-secret");
+        builder.UseSetting("Webhook:MinioUploadToken", "test-minio-upload-token");
+        builder.UseSetting("Api:BaseUrl", "http://localhost");
+
+        builder.ConfigureServices(services =>
+        {
+            var minioDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IMinioService));
+            if (minioDescriptor is not null)
+                services.Remove(minioDescriptor);
+
+            var jobQueueDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IJobQueueService));
+            if (jobQueueDescriptor is not null)
+                services.Remove(jobQueueDescriptor);
+
+            services.AddScoped<IMinioService, FakeMinioService>();
+            services.AddScoped<IJobQueueService, FakeJobQueueService>();
+        });
     }
 
     public async Task InitializeAsync()
