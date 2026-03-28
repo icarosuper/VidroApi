@@ -9,4 +9,8 @@ public interface IMinioService
         string objectKey, TimeSpan ttl, CancellationToken ct = default);
 
     Task<bool> ObjectExistsAsync(string objectKey, CancellationToken ct = default);
+
+    Task DeleteObjectAsync(string objectKey, CancellationToken ct = default);
+
+    Task DeleteObjectsByPrefixAsync(string prefix, CancellationToken ct = default);
 }

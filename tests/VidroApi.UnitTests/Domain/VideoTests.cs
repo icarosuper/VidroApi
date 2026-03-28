@@ -13,7 +13,7 @@ public class VideoTests
     [Fact]
     public void Constructor_ShouldSetRequiredProperties()
     {
-        var video = new Video(ChannelId, "My Video", "A description", Tags, VideoVisibility.Public, Now);
+        var video = new Video(ChannelId, "My Video", "A description", Tags, VideoVisibility.Public, Now.AddHours(2), Now);
 
         video.ChannelId.Should().Be(ChannelId);
         video.Title.Should().Be("My Video");
@@ -21,6 +21,7 @@ public class VideoTests
         video.Tags.Should().BeEquivalentTo(Tags);
         video.Visibility.Should().Be(VideoVisibility.Public);
         video.Status.Should().Be(VideoStatus.PendingUpload);
+        video.UploadExpiresAt.Should().Be(Now.AddHours(2));
         video.ViewCount.Should().Be(0);
         video.LikeCount.Should().Be(0);
         video.DislikeCount.Should().Be(0);
@@ -31,7 +32,7 @@ public class VideoTests
     [Fact]
     public void UpdateDetails_ShouldUpdateFieldsAndSetUpdatedAt()
     {
-        var video = new Video(ChannelId, "Old Title", null, [], VideoVisibility.Public, Now);
+        var video = new Video(ChannelId, "Old Title", null, [], VideoVisibility.Public, Now.AddHours(2), Now);
         var updatedAt = Now.AddDays(1);
 
         video.UpdateDetails("New Title", "New description", ["new-tag"], VideoVisibility.Private, updatedAt);
@@ -46,7 +47,7 @@ public class VideoTests
     [Fact]
     public void ChangeVisibility_ShouldUpdateVisibilityAndSetUpdatedAt()
     {
-        var video = new Video(ChannelId, "My Video", null, [], VideoVisibility.Public, Now);
+        var video = new Video(ChannelId, "My Video", null, [], VideoVisibility.Public, Now.AddHours(2), Now);
         var updatedAt = Now.AddHours(1);
 
         video.ChangeVisibility(VideoVisibility.Unlisted, updatedAt);
@@ -61,7 +62,7 @@ public class VideoTests
     [InlineData(VideoStatus.Failed)]
     public void StatusMethods_ShouldUpdateStatusAndSetUpdatedAt(VideoStatus expectedStatus)
     {
-        var video = new Video(ChannelId, "My Video", null, [], VideoVisibility.Public, Now);
+        var video = new Video(ChannelId, "My Video", null, [], VideoVisibility.Public, Now.AddHours(2), Now);
         var updatedAt = Now.AddHours(1);
 
         if (expectedStatus == VideoStatus.Processing) video.MarkAsProcessing(updatedAt);
@@ -75,7 +76,7 @@ public class VideoTests
     [Fact]
     public void IncrementViewCount_ShouldIncreaseByOne()
     {
-        var video = new Video(ChannelId, "My Video", null, [], VideoVisibility.Public, Now);
+        var video = new Video(ChannelId, "My Video", null, [], VideoVisibility.Public, Now.AddHours(2), Now);
 
         video.IncrementViewCount();
         video.IncrementViewCount();
@@ -86,7 +87,7 @@ public class VideoTests
     [Fact]
     public void LikeCount_ShouldIncrementAndDecrement()
     {
-        var video = new Video(ChannelId, "My Video", null, [], VideoVisibility.Public, Now);
+        var video = new Video(ChannelId, "My Video", null, [], VideoVisibility.Public, Now.AddHours(2), Now);
 
         video.IncrementLikeCount();
         video.IncrementLikeCount();
@@ -98,7 +99,7 @@ public class VideoTests
     [Fact]
     public void DislikeCount_ShouldIncrementAndDecrement()
     {
-        var video = new Video(ChannelId, "My Video", null, [], VideoVisibility.Public, Now);
+        var video = new Video(ChannelId, "My Video", null, [], VideoVisibility.Public, Now.AddHours(2), Now);
 
         video.IncrementDislikeCount();
         video.DecrementDislikeCount();

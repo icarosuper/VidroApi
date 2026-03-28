@@ -32,6 +32,7 @@ public class VideoConfiguration : IEntityTypeConfiguration<Video>
 
         builder.Property(v => v.Visibility).HasColumnName("visibility");
         builder.Property(v => v.Status).HasColumnName("status");
+        builder.Property(v => v.UploadExpiresAt).HasColumnName("upload_expires_at");
         builder.Property(v => v.ViewCount).HasColumnName("view_count");
         builder.Property(v => v.LikeCount).HasColumnName("like_count");
         builder.Property(v => v.DislikeCount).HasColumnName("dislike_count");

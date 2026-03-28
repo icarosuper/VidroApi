@@ -15,5 +15,8 @@ public static partial class Errors
 
         public static Error AlreadyProcessing() =>
             new("video.already_processing", "The video is already being processed.", ErrorType.Conflict);
+
+        public static Error NotPendingUpload() =>
+            new("video.not_pending_upload", "The video is not awaiting upload.", ErrorType.Conflict);
     }
 }

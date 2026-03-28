@@ -13,7 +13,7 @@ public class Video : BaseAuditableEntity
     private Video() { }
 
     public Video(Guid channelId, string title, string? description, List<string> tags,
-        VideoVisibility visibility, DateTimeOffset now)
+        VideoVisibility visibility, DateTimeOffset uploadExpiresAt, DateTimeOffset now)
         : base(now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
@@ -29,6 +29,7 @@ public class Video : BaseAuditableEntity
         Tags = tags;
         Visibility = visibility;
         Status = VideoStatus.PendingUpload;
+        UploadExpiresAt = uploadExpiresAt;
         ViewCount = 0;
         LikeCount = 0;
         DislikeCount = 0;
@@ -40,6 +41,7 @@ public class Video : BaseAuditableEntity
     public List<string> Tags { get; private set; } = null!;
     public VideoVisibility Visibility { get; private set; }
     public VideoStatus Status { get; private set; }
+    public DateTimeOffset UploadExpiresAt { get; private set; }
     public int ViewCount { get; private set; }
     public int LikeCount { get; private set; }
     public int DislikeCount { get; private set; }
