@@ -53,19 +53,12 @@ public static class GetVideo
         {
             var video = await db.Videos
                 .Include(v => v.Channel)
-                .FirstOrDefaultAsync(v => v.Id == cmd.VideoId, ct);
+                .FirstOrDefaultAsync(v => v.Id == cmd.VideoId
+                    && (v.Channel.UserId == cmd.RequestingUserId
+                        || (v.Status == VideoStatus.Ready && v.Visibility != VideoVisibility.Private)),
+                    ct);
 
             if (video is null)
-                return CommonErrors.NotFound(nameof(Domain.Entities.Video), cmd.VideoId);
-
-            var isOwner = video.Channel.UserId == cmd.RequestingUserId;
-            var videoIsPrivate = video.Visibility == VideoVisibility.Private; 
-
-            if (videoIsPrivate && !isOwner)
-                return CommonErrors.Forbidden();
-
-            var isNotReadyForPublic = !isOwner && video.Status != VideoStatus.Ready;
-            if (isNotReadyForPublic)
                 return CommonErrors.NotFound(nameof(Domain.Entities.Video), cmd.VideoId);
 
             return new Response

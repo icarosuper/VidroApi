@@ -46,7 +46,7 @@ public class GetVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task GetVideo_PrivateVideo_AsNonOwner_Returns403()
+    public async Task GetVideo_PrivateVideo_AsNonOwner_Returns404()
     {
         var (_, _, videoId) = await CreateReadyVideo(visibility: 2); // Private
 
@@ -55,7 +55,7 @@ public class GetVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         var response = await _client.GetAsync($"/v1/videos/{videoId}");
 
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]

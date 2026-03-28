@@ -4,6 +4,7 @@ using Mediator;
 using Microsoft.EntityFrameworkCore;
 using VidroApi.Api.Extensions;
 using VidroApi.Application.Abstractions;
+using VidroApi.Domain.Enums;
 using VidroApi.Domain.Errors;
 using VidroApi.Domain.Errors.EntityErrors;
 using VidroApi.Infrastructure.Persistence;
@@ -50,7 +51,9 @@ public static class DeleteVideo
 
             var isOwner = video.Channel.UserId == cmd.UserId;
             if (!isOwner)
-                return Errors.Video.NotOwner();
+                return video.Visibility == VideoVisibility.Private
+                    ? CommonErrors.NotFound(nameof(Domain.Entities.Video), cmd.VideoId)
+                    : Errors.Video.NotOwner();
 
             var reactions = await db.Reactions.Where(r => r.VideoId == cmd.VideoId).ToListAsync(ct);
             db.Reactions.RemoveRange(reactions);

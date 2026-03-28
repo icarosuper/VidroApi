@@ -67,6 +67,19 @@ public class DeleteVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task DeleteVideo_PrivateVideo_AsNonOwner_Returns404()
+    {
+        var (_, _, videoId) = await CreateReadyVideo(visibility: 2); // Private
+
+        var otherToken = await SignUpAndGetAccessToken();
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", otherToken);
+
+        var response = await _client.DeleteAsync($"/v1/videos/{videoId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task DeleteVideo_NonExistentVideo_Returns404()
     {
         var accessToken = await SignUpAndGetAccessToken();
@@ -77,7 +90,7 @@ public class DeleteVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
-    private async Task<(string AccessToken, Guid ChannelId, Guid VideoId)> CreateReadyVideo()
+    private async Task<(string AccessToken, Guid ChannelId, Guid VideoId)> CreateReadyVideo(int visibility = 0)
     {
         var (accessToken, channelId) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -86,7 +99,7 @@ public class DeleteVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
         {
             title = "Video to Delete",
             tags = Array.Empty<string>(),
-            visibility = 0
+            visibility
         });
         var createBody = await createResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var videoId = Guid.Parse(createBody.GetProperty("data").GetProperty("videoId").GetString()!);
