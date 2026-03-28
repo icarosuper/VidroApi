@@ -7,7 +7,7 @@ namespace VidroApi.Api.Extensions;
 
 public static class ResultExtensions
 {
-    public static IHttpResult ToApiResult<T>(this Result<T, Error> result, int successStatusCode = StatusCodes.Status200OK)
+    public static IHttpResult ToApiResult<T>(this Result<T, Error> result, int successStatusCode)
     {
         if (result.IsFailure)
             return ApiResponse.Fail(result.Error);

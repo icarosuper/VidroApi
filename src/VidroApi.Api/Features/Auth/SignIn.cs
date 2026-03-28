@@ -52,7 +52,7 @@ public static class SignIn
             CancellationToken ct) =>
         {
             var result = await mediator.Send(req, ct);
-            return result.ToApiResult();
+            return result.ToApiResult(StatusCodes.Status200OK);
         });
 
     public class Handler(

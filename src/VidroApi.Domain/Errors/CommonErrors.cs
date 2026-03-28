@@ -12,5 +12,5 @@ public static class CommonErrors
         new("request.forbidden", message, ErrorType.Forbidden);
 
     public static Error InternalServerError(string message = "An unexpected error occurred.") =>
-        new("internal.server_error", message);
+        new("internal.server_error", message, ErrorType.Validation);
 }

@@ -32,7 +32,7 @@ public static class GetChannel
         {
             var cmd = new Command { ChannelId = channelId };
             var result = await mediator.Send(cmd, ct);
-            return result.ToApiResult();
+            return result.ToApiResult(StatusCodes.Status200OK);
         });
 
     public class Handler(AppDbContext db) : IRequestHandler<Command, Result<Response, Error>>
