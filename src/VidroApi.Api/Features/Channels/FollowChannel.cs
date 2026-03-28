@@ -41,16 +41,20 @@ public static class FollowChannel
     {
         public async ValueTask<UnitResult<Error>> Handle(Command cmd, CancellationToken ct)
         {
-            var channelExists = await db.Channels.AnyAsync(c => c.Id == cmd.ChannelId, ct);
-            if (!channelExists)
+            var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == cmd.ChannelId, ct);
+            if (channel is null)
                 return CommonErrors.NotFound(nameof(Channel), cmd.ChannelId);
+
+            var isOwnChannel = channel.UserId == cmd.UserId;
+            if (isOwnChannel)
+                return Errors.Channel.CannotFollowOwnChannel();
 
             var alreadyFollowing = await db.ChannelFollowers
                 .AnyAsync(cf => cf.ChannelId == cmd.ChannelId && cf.UserId == cmd.UserId, ct);
             if (alreadyFollowing)
                 return Errors.Channel.AlreadyFollowing();
 
-            var follower = new ChannelFollower(cmd.ChannelId, cmd.UserId, clock.UtcNow);
+            var follower = new ChannelFollower(channel.Id, cmd.UserId, clock.UtcNow);
             db.ChannelFollowers.Add(follower);
 
             await db.Channels

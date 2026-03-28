@@ -71,6 +71,24 @@ public class FollowChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task FollowChannel_OwnChannel_Returns409WithExpectedCode()
+    {
+        var accessToken = await SignUpAndGetAccessToken();
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var createResponse = await _client.PostAsJsonAsync("/v1/channels", new { name = "My Channel" });
+        var createBody = await createResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        var channelId = createBody.GetProperty("data").GetProperty("channelId").GetString();
+
+        var response = await _client.PostAsync($"/v1/channels/{channelId}/follow", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        body.GetProperty("code").GetString().Should().Be("channel.cannot_follow_own");
+    }
+
+    [Fact]
     public async Task FollowChannel_WithNonExistentId_Returns404()
     {
         var followerToken = await SignUpAndGetAccessToken();
