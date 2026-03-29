@@ -124,7 +124,8 @@ dotnet test tests/VidroApi.UnitTests --filter "FullyQualifiedName~ClassName"
 dotnet test tests/VidroApi.UnitTests --filter "FullyQualifiedName~ClassName.MethodName"
 
 # EF Core migrations (always specify both projects)
-dotnet ef migrations add <Name> --project src/VidroApi.Infrastructure --startup-project src/VidroApi.Api --output-dir Persistence/Migrations
+# Migration names must follow the pattern: PascalCaseDescriptionMigration (e.g. AddCommentsFeatureMigration, ChangeUsernameMaxLengthMigration)
+dotnet ef migrations add <DescriptionMigration> --project src/VidroApi.Infrastructure --startup-project src/VidroApi.Api --output-dir Persistence/Migrations
 dotnet ef database update --project src/VidroApi.Infrastructure --startup-project src/VidroApi.Api
 
 # Start dependencies

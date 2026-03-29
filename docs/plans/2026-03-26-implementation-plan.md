@@ -2204,20 +2204,66 @@ git commit -m "feat: add Reactions slices (upsert like/dislike)"
 
 ---
 
-## Task 17: Comments — AddComment, ListComments, DeleteComment
+## Task 17: Comments — escopo completo
+
+### Task 17a: Preparação do modelo
+
+**Alterações no domínio:**
+- `Comment`: adicionar `ParentCommentId? (Guid)` (self-referential FK, 1 nível de profundidade) e `LikeCount (int)`
+- `Video`: adicionar `CommentCount (int)` (counter denormalizado, atualizado via `ExecuteUpdateAsync`)
+- Nova entidade `CommentReaction`: `CommentId`, `UserId`, `Type (ReactionType)` — somente `Like` por ora
+- Nova configuração: `src/VidroApi.Infrastructure/Persistence/Configurations/CommentReactionConfiguration.cs`
+- Novo `DbSet<CommentReaction>` no `AppDbContext`
+- Nova migration cobrindo todas as mudanças acima
+
+```bash
+dotnet ef migrations add AddCommentsFeature --project src/VidroApi.Infrastructure --startup-project src/VidroApi.Api --output-dir Persistence/Migrations
+dotnet build
+git add .
+git commit -m "feat: add CommentReaction entity and update Comment/Video models"
+```
+
+---
+
+### Task 17b: Features de comentários
 
 **Files:**
-- Create: `src/VideoApi.Application/Comments/AddComment.cs`
-- Create: `src/VideoApi.Application/Comments/ListComments.cs`
-- Create: `src/VideoApi.Application/Comments/DeleteComment.cs`
+- Create: `src/VidroApi.Api/Features/Comments/AddComment.cs`
+- Create: `src/VidroApi.Api/Features/Comments/EditComment.cs`
+- Create: `src/VidroApi.Api/Features/Comments/DeleteComment.cs`
+- Create: `src/VidroApi.Api/Features/Comments/ListComments.cs`
+- Create: `src/VidroApi.Api/Features/Comments/ListReplies.cs`
+- Create: `src/VidroApi.Api/Features/Comments/ReactToComment.cs`
+- Create: `src/VidroApi.Api/Features/Comments/RemoveCommentReaction.cs`
 
-Seguir o mesmo padrão dos slices anteriores. `ListComments` usa cursor-based pagination igual ao `ListChannelVideos`.
+**Comportamentos-chave:**
+
+`AddComment` — aceita `ParentCommentId?` opcional. Se informado, valida que o comentário pai existe e pertence ao mesmo vídeo e que `ParentComment.ParentCommentId` é null (sem nesting além de 1 nível). Incrementa `Video.CommentCount` via `ExecuteUpdateAsync`. Conteúdo pode conter menções (`@username`) — armazenadas como texto puro, sem processamento backend.
+
+`EditComment` — apenas o autor pode editar. Chama `comment.Edit(content, now)`.
+
+`DeleteComment` — soft delete via `comment.Delete(now)`. Decrementa `Video.CommentCount` via `ExecuteUpdateAsync`. Usar transação. Apenas o autor pode deletar o próprio comentário.
+
+`ListComments` — apenas comentários raiz (`ParentCommentId == null`) de um vídeo. Cursor-based pagination por `CreatedAt`. Parâmetro `sort=recent|popular` — `recent` ordena por `CreatedAt DESC`, `popular` ordena por `LikeCount DESC, CreatedAt DESC`. Excluir `IsDeleted == true` do resultado (ou retornar como `[comentário removido]` — decisão a tomar na implementação).
+
+`ListReplies` — respostas de um comentário raiz específico. Cursor-based pagination por `CreatedAt`.
+
+`ReactToComment` — upsert igual ao `ReactToVideo`: se mesma reação → no-op, se tipo diferente → atualiza. Incrementa/decrementa `Comment.LikeCount` via `ExecuteUpdateAsync`. Usar transação.
+
+`RemoveCommentReaction` — remove a reação e decrementa `Comment.LikeCount`. Usar transação.
 
 ```bash
 dotnet build
 git add .
-git commit -m "feat: add Comments slices"
+git commit -m "feat: add Comments slices (add, edit, delete, list, replies, reactions)"
 ```
+
+---
+
+### Task 17c: Testes
+
+- Unit tests para `Comment` em `tests/VidroApi.UnitTests/Domain/CommentTests.cs`
+- Integration tests em `tests/VidroApi.IntegrationTests/Comments/`
 
 ---
 
