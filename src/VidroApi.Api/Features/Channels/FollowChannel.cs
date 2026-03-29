@@ -54,15 +54,22 @@ public static class FollowChannel
             if (alreadyFollowing)
                 return Errors.Channel.AlreadyFollowing();
 
-            var follower = new ChannelFollower(channel.Id, cmd.UserId, clock.UtcNow);
-            db.ChannelFollowers.Add(follower);
-            await db.SaveChangesAsync(ct);
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-            await db.Channels
-                .Where(c => c.Id == cmd.ChannelId)
-                .ExecuteUpdateAsync(s => s.SetProperty(c => c.FollowerCount, c => c.FollowerCount + 1), ct);
+            db.ChannelFollowers.Add(new ChannelFollower(channel.Id, cmd.UserId, clock.UtcNow));
+            await db.SaveChangesAsync(ct);
+            await IncrementFollowerCount(cmd.ChannelId, ct);
+
+            await tx.CommitAsync(ct);
 
             return UnitResult.Success<Error>();
+        }
+
+        private Task<int> IncrementFollowerCount(Guid channelId, CancellationToken ct)
+        {
+            return db.Channels
+                .Where(c => c.Id == channelId)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.FollowerCount, c => c.FollowerCount + 1), ct);
         }
     }
 }
