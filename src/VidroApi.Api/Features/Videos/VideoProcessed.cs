@@ -72,7 +72,9 @@ public static class VideoProcessed
         var keyBytes = Encoding.UTF8.GetBytes(secret);
         var hash = HMACSHA256.HashData(keyBytes, payload);
         var expectedSignature = $"sha256={Convert.ToHexString(hash).ToLowerInvariant()}";
-        return signatureHeader == expectedSignature;
+        var expectedBytes = Encoding.UTF8.GetBytes(expectedSignature);
+        var actualBytes = Encoding.UTF8.GetBytes(signatureHeader);
+        return CryptographicOperations.FixedTimeEquals(expectedBytes, actualBytes);
     }
 
     public class Handler(AppDbContext db, IDateTimeProvider clock)
@@ -86,7 +88,7 @@ public static class VideoProcessed
 
             var isProcessing = video.Status == VideoStatus.Processing;
             if (!isProcessing)
-                return Errors.Video.AlreadyProcessing();
+                return Errors.Video.NotInProcessingState();
 
             var now = clock.UtcNow;
 
