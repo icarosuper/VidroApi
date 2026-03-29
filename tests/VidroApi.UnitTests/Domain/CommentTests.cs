@@ -51,7 +51,7 @@ public class CommentTests
         var comment = new Comment(VideoId, UserId, "Some content", parentCommentId: null, Now);
         var deletedAt = Now.AddMinutes(5);
 
-        comment.Delete(deletedAt);
+        comment.SoftDelete(deletedAt);
 
         comment.IsDeleted.Should().BeTrue();
         comment.UpdatedAt.Should().Be(deletedAt);
