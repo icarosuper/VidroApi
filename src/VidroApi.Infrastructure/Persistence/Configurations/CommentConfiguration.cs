@@ -44,5 +44,8 @@ public class CommentConfiguration : IEntityTypeConfiguration<Comment>
         builder.HasMany(c => c.Reactions)
             .WithOne(r => r.Comment)
             .HasForeignKey(r => r.CommentId);
+
+        builder.HasIndex(c => new { c.VideoId, c.ParentCommentId });
+        builder.HasIndex(c => new { c.ParentCommentId, c.CreatedAt });
     }
 }

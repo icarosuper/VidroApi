@@ -48,5 +48,7 @@ public class VideoConfiguration : IEntityTypeConfiguration<Video>
         builder.HasOne(v => v.Metadata)
             .WithOne(m => m.Video)
             .HasForeignKey<VideoMetadata>(m => m.VideoId);
+
+        builder.HasIndex(v => new { v.Status, v.Visibility });
     }
 }

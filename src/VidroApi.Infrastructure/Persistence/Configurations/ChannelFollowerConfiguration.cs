@@ -18,6 +18,7 @@ public class ChannelFollowerConfiguration : IEntityTypeConfiguration<ChannelFoll
         builder.Property(cf => cf.UserId).HasColumnName("user_id");
 
         builder.HasIndex(cf => new { cf.ChannelId, cf.UserId }).IsUnique();
+        builder.HasIndex(cf => cf.UserId);
 
         builder.HasOne(cf => cf.Channel)
             .WithMany()
