@@ -46,7 +46,7 @@ public class Comment : BaseAuditableEntity
         SetUpdatedAt(now);
     }
 
-    public void Delete(DateTimeOffset now)
+    public void SoftDelete(DateTimeOffset now)
     {
         IsDeleted = true;
         SetUpdatedAt(now);
