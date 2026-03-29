@@ -2204,66 +2204,57 @@ git commit -m "feat: add Reactions slices (upsert like/dislike)"
 
 ---
 
-## Task 17: Comments — escopo completo
+## Task 17: ✅ Comments — escopo completo
 
-### Task 17a: Preparação do modelo
+### Task 17a: ✅ Preparação do modelo
 
 **Alterações no domínio:**
-- `Comment`: adicionar `ParentCommentId? (Guid)` (self-referential FK, 1 nível de profundidade) e `LikeCount (int)`
-- `Video`: adicionar `CommentCount (int)` (counter denormalizado, atualizado via `ExecuteUpdateAsync`)
-- Nova entidade `CommentReaction`: `CommentId`, `UserId`, `Type (ReactionType)` — somente `Like` por ora
+- `Comment`: adicionados `ParentCommentId? (Guid)` (self-referential FK, 1 nível de profundidade), `LikeCount (int)`, `DislikeCount (int)`, `ReplyCount (int)`. Método de soft delete renomeado para `SoftDelete(now)` para deixar explícito que não é deleção física.
+- `Video`: adicionado `CommentCount (int)` (counter denormalizado, atualizado via `ExecuteUpdateAsync`). Também exposto em `GetVideo` response.
+- Nova entidade `CommentReaction`: `CommentId`, `UserId`, `Type (ReactionType)` — suporta Like e Dislike.
 - Nova configuração: `src/VidroApi.Infrastructure/Persistence/Configurations/CommentReactionConfiguration.cs`
 - Novo `DbSet<CommentReaction>` no `AppDbContext`
-- Nova migration cobrindo todas as mudanças acima
-
-```bash
-dotnet ef migrations add AddCommentsFeature --project src/VidroApi.Infrastructure --startup-project src/VidroApi.Api --output-dir Persistence/Migrations
-dotnet build
-git add .
-git commit -m "feat: add CommentReaction entity and update Comment/Video models"
-```
+- Migration: `AddCommentsFeatureMigration` (convenção: sufixo `Migration` obrigatório)
 
 ---
 
-### Task 17b: Features de comentários
+### Task 17b: ✅ Features de comentários
 
 **Files:**
-- Create: `src/VidroApi.Api/Features/Comments/AddComment.cs`
-- Create: `src/VidroApi.Api/Features/Comments/EditComment.cs`
-- Create: `src/VidroApi.Api/Features/Comments/DeleteComment.cs`
-- Create: `src/VidroApi.Api/Features/Comments/ListComments.cs`
-- Create: `src/VidroApi.Api/Features/Comments/ListReplies.cs`
-- Create: `src/VidroApi.Api/Features/Comments/ReactToComment.cs`
-- Create: `src/VidroApi.Api/Features/Comments/RemoveCommentReaction.cs`
+- `src/VidroApi.Api/Features/Comments/AddComment.cs`
+- `src/VidroApi.Api/Features/Comments/EditComment.cs`
+- `src/VidroApi.Api/Features/Comments/DeleteComment.cs`
+- `src/VidroApi.Api/Features/Comments/ListComments.cs`
+- `src/VidroApi.Api/Features/Comments/ListReplies.cs`
+- `src/VidroApi.Api/Features/Comments/ReactToComment.cs`
+- `src/VidroApi.Api/Features/Comments/RemoveCommentReaction.cs`
 
-**Comportamentos-chave:**
+**Decisões tomadas:**
 
-`AddComment` — aceita `ParentCommentId?` opcional. Se informado, valida que o comentário pai existe e pertence ao mesmo vídeo e que `ParentComment.ParentCommentId` é null (sem nesting além de 1 nível). Incrementa `Video.CommentCount` via `ExecuteUpdateAsync`. Conteúdo pode conter menções (`@username`) — armazenadas como texto puro, sem processamento backend.
+`AddComment` — aceita `ParentCommentId?` opcional. Valida que o pai existe, pertence ao mesmo vídeo e não é ele próprio uma resposta (sem nesting além de 1 nível). Incrementa `Video.CommentCount` e, se for resposta, `ParentComment.ReplyCount`, ambos via `ExecuteUpdateAsync` em transação. Validadores nas features com `Request+Command` devem ser `AbstractValidator<Command>` (não `Request`) para serem invocados pelo pipeline MediatR.
 
-`EditComment` — apenas o autor pode editar. Chama `comment.Edit(content, now)`.
+`EditComment` — apenas o autor pode editar. Chama `comment.Edit(content, now)`. Retorna 404 para comentários soft-deletados.
 
-`DeleteComment` — soft delete via `comment.Delete(now)`. Decrementa `Video.CommentCount` via `ExecuteUpdateAsync`. Usar transação. Apenas o autor pode deletar o próprio comentário.
+`DeleteComment` — soft delete via `comment.SoftDelete(now)`. Decrementa `Video.CommentCount` e, se for resposta, `ParentComment.ReplyCount`, ambos em transação. Apenas o autor pode deletar.
 
-`ListComments` — apenas comentários raiz (`ParentCommentId == null`) de um vídeo. Cursor-based pagination por `CreatedAt`. Parâmetro `sort=recent|popular` — `recent` ordena por `CreatedAt DESC`, `popular` ordena por `LikeCount DESC, CreatedAt DESC`. Excluir `IsDeleted == true` do resultado (ou retornar como `[comentário removido]` — decisão a tomar na implementação).
+`ListComments` — apenas comentários raiz (`ParentCommentId == null`). Parâmetro `sort=Recent|Popular`. `Recent`: cursor-based pagination por `CreatedAt DESC`. `Popular`: lista fixa (sem cursor) por `LikeCount DESC, CreatedAt DESC`. Comentários soft-deletados aparecem com `content: null` e `isDeleted: true` (para preservar contexto das respostas). Dono do vídeo pode ver comentários mesmo em vídeos privados (passa `RequestingUserId` via `ClaimsPrincipal`).
 
-`ListReplies` — respostas de um comentário raiz específico. Cursor-based pagination por `CreatedAt`.
+`ListReplies` — respostas de um comentário raiz. Cursor-based pagination por `CreatedAt ASC` (ordem cronológica).
 
-`ReactToComment` — upsert igual ao `ReactToVideo`: se mesma reação → no-op, se tipo diferente → atualiza. Incrementa/decrementa `Comment.LikeCount` via `ExecuteUpdateAsync`. Usar transação.
+`ReactToComment` — upsert: sem reação → adiciona + incrementa; mesmo tipo → no-op; tipo diferente → `reaction.ChangeType(type)` + troca os contadores. Suporta Like e Dislike (`LikeCount` e `DislikeCount`).
 
-`RemoveCommentReaction` — remove a reação e decrementa `Comment.LikeCount`. Usar transação.
+`RemoveCommentReaction` — remove e decrementa o contador correspondente ao tipo que estava registrado. Transação.
 
-```bash
-dotnet build
-git add .
-git commit -m "feat: add Comments slices (add, edit, delete, list, replies, reactions)"
-```
+**Limites máximos** (configurados via settings por feature, não hardcoded):
+- `ListCommentsSettings`: `MaxLimit=100`, `MaxPopularLimit=50`
+- `ListRepliesSettings`: `MaxLimit=50`
 
 ---
 
-### Task 17c: Testes
+### Task 17c: ✅ Testes
 
-- Unit tests para `Comment` em `tests/VidroApi.UnitTests/Domain/CommentTests.cs`
-- Integration tests em `tests/VidroApi.IntegrationTests/Comments/`
+- Unit tests em `tests/VidroApi.UnitTests/Domain/CommentTests.cs`
+- Integration tests em `tests/VidroApi.IntegrationTests/Comments/` (7 arquivos, um por feature)
 
 ---
 
