@@ -26,7 +26,7 @@ public class ListChannelVideosTests(ApiFactory factory) : IClassFixture<ApiFacto
 
         await CreateAndReadyVideo(channelId, visibility: 0);
 
-        var response = await _client.GetAsync($"/v1/channels/{channelId}/videos");
+        var response = await _client.GetAsync($"/v1/channels/{channelId}/videos?limit=10");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -43,7 +43,7 @@ public class ListChannelVideosTests(ApiFactory factory) : IClassFixture<ApiFacto
         await CreateAndReadyVideo(channelId, visibility: 2); // Private
 
         _client.DefaultRequestHeaders.Authorization = null;
-        var response = await _client.GetAsync($"/v1/channels/{channelId}/videos");
+        var response = await _client.GetAsync($"/v1/channels/{channelId}/videos?limit=10");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -60,7 +60,7 @@ public class ListChannelVideosTests(ApiFactory factory) : IClassFixture<ApiFacto
         await CreateAndReadyVideo(channelId, visibility: 2); // Private
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        var response = await _client.GetAsync($"/v1/channels/{channelId}/videos");
+        var response = await _client.GetAsync($"/v1/channels/{channelId}/videos?limit=10");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -86,7 +86,7 @@ public class ListChannelVideosTests(ApiFactory factory) : IClassFixture<ApiFacto
         _ = Guid.Parse(createBody.GetProperty("data").GetProperty("videoId").GetString()!);
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        var response = await _client.GetAsync($"/v1/channels/{channelId}/videos");
+        var response = await _client.GetAsync($"/v1/channels/{channelId}/videos?limit=10");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -99,7 +99,7 @@ public class ListChannelVideosTests(ApiFactory factory) : IClassFixture<ApiFacto
     [Fact]
     public async Task ListChannelVideos_NonExistentChannel_Returns404()
     {
-        var response = await _client.GetAsync($"/v1/channels/{Guid.NewGuid()}/videos");
+        var response = await _client.GetAsync($"/v1/channels/{Guid.NewGuid()}/videos?limit=10");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }

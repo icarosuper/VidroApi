@@ -23,7 +23,7 @@ public class ListFeedVideosTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ListFeedVideos_WithoutAuthentication_Returns401()
     {
-        var response = await _client.GetAsync("/v1/feed");
+        var response = await _client.GetAsync("/v1/feed?limit=10");
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -34,7 +34,7 @@ public class ListFeedVideosTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var accessToken = await SignUpAndGetAccessToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var response = await _client.GetAsync("/v1/feed");
+        var response = await _client.GetAsync("/v1/feed?limit=10");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
@@ -53,7 +53,7 @@ public class ListFeedVideosTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var videoId = await CreateReadyVideoAsync(creatorToken, channelId, "Feed Video");
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", followerToken);
-        var response = await _client.GetAsync("/v1/feed");
+        var response = await _client.GetAsync("/v1/feed?limit=10");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
@@ -75,7 +75,7 @@ public class ListFeedVideosTests(ApiFactory factory) : IClassFixture<ApiFactory>
         await CreateReadyVideoAsync(otherToken, otherChannelId, "Other Video");
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
-        var response = await _client.GetAsync("/v1/feed");
+        var response = await _client.GetAsync("/v1/feed?limit=10");
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var videos = body.GetProperty("data").GetProperty("videos");
@@ -105,7 +105,7 @@ public class ListFeedVideosTests(ApiFactory factory) : IClassFixture<ApiFactory>
         });
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", followerToken);
-        var response = await _client.GetAsync("/v1/feed");
+        var response = await _client.GetAsync("/v1/feed?limit=10");
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var videos = body.GetProperty("data").GetProperty("videos");
@@ -122,7 +122,7 @@ public class ListFeedVideosTests(ApiFactory factory) : IClassFixture<ApiFactory>
         await CreateReadyVideoAsync(creatorToken, channelId, "Private Video", visibility: 2);
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", followerToken);
-        var response = await _client.GetAsync("/v1/feed");
+        var response = await _client.GetAsync("/v1/feed?limit=10");
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var videos = body.GetProperty("data").GetProperty("videos");
@@ -139,7 +139,7 @@ public class ListFeedVideosTests(ApiFactory factory) : IClassFixture<ApiFactory>
         await CreateReadyVideoAsync(creatorToken, channelId, "Video With Thumbnail");
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", followerToken);
-        var response = await _client.GetAsync("/v1/feed");
+        var response = await _client.GetAsync("/v1/feed?limit=10");
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var video = body.GetProperty("data").GetProperty("videos")[0];

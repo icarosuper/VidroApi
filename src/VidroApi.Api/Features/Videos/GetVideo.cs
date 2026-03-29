@@ -30,6 +30,7 @@ public static class GetVideo
         public int ViewCount { get; init; }
         public int LikeCount { get; init; }
         public int DislikeCount { get; init; }
+        public int CommentCount { get; init; }
         public DateTimeOffset CreatedAt { get; init; }
     }
 
@@ -71,6 +72,7 @@ public static class GetVideo
                 ViewCount = video.ViewCount,
                 LikeCount = video.LikeCount,
                 DislikeCount = video.DislikeCount,
+                CommentCount = video.CommentCount,
                 CreatedAt = video.CreatedAt
             };
         }

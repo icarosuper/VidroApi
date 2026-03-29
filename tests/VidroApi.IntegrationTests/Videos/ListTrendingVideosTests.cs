@@ -23,7 +23,7 @@ public class ListTrendingVideosTests(ApiFactory factory) : IClassFixture<ApiFact
     [Fact]
     public async Task ListTrendingVideos_WithNoVideos_ReturnsEmptyList()
     {
-        var response = await _client.GetAsync("/v1/videos/trending");
+        var response = await _client.GetAsync("/v1/videos/trending?limit=10");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
@@ -33,7 +33,7 @@ public class ListTrendingVideosTests(ApiFactory factory) : IClassFixture<ApiFact
     [Fact]
     public async Task ListTrendingVideos_WithoutAuthentication_Returns200()
     {
-        var response = await _client.GetAsync("/v1/videos/trending");
+        var response = await _client.GetAsync("/v1/videos/trending?limit=10");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -57,7 +57,7 @@ public class ListTrendingVideosTests(ApiFactory factory) : IClassFixture<ApiFact
         // Private ready video
         await CreateReadyVideoAsync(accessToken, channelId, "Private Video", visibility: 2);
 
-        var response = await _client.GetAsync("/v1/videos/trending");
+        var response = await _client.GetAsync("/v1/videos/trending?limit=10");
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var videos = body.GetProperty("data").GetProperty("videos");
 
@@ -76,7 +76,7 @@ public class ListTrendingVideosTests(ApiFactory factory) : IClassFixture<ApiFact
         var (accessToken, channelId) = await CreateChannelAndGetIds();
         await CreateReadyVideoAsync(accessToken, channelId, "Video With Thumbnail");
 
-        var response = await _client.GetAsync("/v1/videos/trending");
+        var response = await _client.GetAsync("/v1/videos/trending?limit=10");
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var video = body.GetProperty("data").GetProperty("videos")[0];
 
