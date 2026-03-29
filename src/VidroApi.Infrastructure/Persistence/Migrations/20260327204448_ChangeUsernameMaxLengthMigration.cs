@@ -1,8 +1,8 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace VidroApi.Infrastructure.Migrations
+namespace VidroApi.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
     public partial class ChangeUsernameMaxLengthMigration : Migration
