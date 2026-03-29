@@ -18,5 +18,8 @@ public static partial class Errors
 
         public static Error NotPendingUpload() =>
             new("video.not_pending_upload", "The video is not awaiting upload.", ErrorType.Conflict);
+
+        public static Error CannotReactToOwnVideo() =>
+            new("video.cannot_react_to_own", "You cannot react to your own video.", ErrorType.Conflict);
     }
 }
