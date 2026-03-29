@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using VidroApi.Infrastructure.Persistence;
@@ -12,9 +13,11 @@ using VidroApi.Infrastructure.Persistence;
 namespace VidroApi.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260329204633_AddPerformanceIndexesMigration")]
+    partial class AddPerformanceIndexesMigration
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -184,32 +187,6 @@ namespace VidroApi.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("comment_reactions", (string)null);
-                });
-
-            modelBuilder.Entity("VidroApi.Domain.Entities.PendingStorageCleanup", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<bool>("IsPrefix")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_prefix");
-
-                    b.Property<string>("ObjectPath")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("object_path");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("pending_storage_cleanups", (string)null);
                 });
 
             modelBuilder.Entity("VidroApi.Domain.Entities.Reaction", b =>
