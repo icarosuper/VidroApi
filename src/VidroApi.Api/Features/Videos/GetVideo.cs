@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CSharpFunctionalExtensions;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
+using VidroApi.Api.Common;
 using VidroApi.Api.Extensions;
 using VidroApi.Domain.Enums;
 using VidroApi.Domain.Errors;
@@ -25,8 +26,8 @@ public static class GetVideo
         public string Title { get; init; } = null!;
         public string? Description { get; init; }
         public List<string> Tags { get; init; } = [];
-        public string Visibility { get; init; } = null!;
-        public string Status { get; init; } = null!;
+        public EnumValue Visibility { get; init; } = null!;
+        public EnumValue Status { get; init; } = null!;
         public int ViewCount { get; init; }
         public int LikeCount { get; init; }
         public int DislikeCount { get; init; }
@@ -67,8 +68,8 @@ public static class GetVideo
                 Title = video.Title,
                 Description = video.Description,
                 Tags = video.Tags,
-                Visibility = video.Visibility.ToString(),
-                Status = video.Status.ToString(),
+                Visibility = EnumValue.From(video.Visibility),
+                Status = EnumValue.From(video.Status),
                 ViewCount = video.ViewCount,
                 LikeCount = video.LikeCount,
                 DislikeCount = video.DislikeCount,

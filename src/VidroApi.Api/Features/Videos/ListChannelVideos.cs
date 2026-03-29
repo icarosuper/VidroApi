@@ -4,6 +4,7 @@ using FluentValidation;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using VidroApi.Api.Common;
 using VidroApi.Api.Extensions;
 using VidroApi.Domain.Enums;
 using VidroApi.Domain.Errors;
@@ -43,8 +44,8 @@ public static class ListChannelVideos
             public string Title { get; init; } = null!;
             public string? Description { get; init; }
             public List<string> Tags { get; init; } = [];
-            public string Visibility { get; init; } = null!;
-            public string Status { get; init; } = null!;
+            public EnumValue Visibility { get; init; } = null!;
+            public EnumValue Status { get; init; } = null!;
             public int ViewCount { get; init; }
             public int LikeCount { get; init; }
             public DateTimeOffset CreatedAt { get; init; }
@@ -116,8 +117,8 @@ public static class ListChannelVideos
                     Title = v.Title,
                     Description = v.Description,
                     Tags = v.Tags,
-                    Visibility = v.Visibility.ToString(),
-                    Status = v.Status.ToString(),
+                    Visibility = new EnumValue { Id = (int)v.Visibility, Value = v.Visibility.ToString() },
+                    Status = new EnumValue { Id = (int)v.Status, Value = v.Status.ToString() },
                     ViewCount = v.ViewCount,
                     LikeCount = v.LikeCount,
                     CreatedAt = v.CreatedAt

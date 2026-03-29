@@ -210,6 +210,24 @@ public static class FeatureName
 
 `ApiResponse` and `ResultExtensions` live in `Api/Common/` and `Api/Extensions/`.
 
+### Enums in responses
+
+**Never return a raw enum string or a raw integer.** Always use `EnumValue` (`Api/Common/EnumValue.cs`) so the consumer gets both the numeric ID and the human-readable string:
+
+```json
+{ "visibility": { "id": 0, "value": "Public" } }
+```
+
+In handlers (non-LINQ context), use the static helper:
+```csharp
+Visibility = EnumValue.From(video.Visibility),
+```
+
+In EF Core LINQ projections (`.Select(v => ...)`), use inline construction because `EnumValue.From` is a custom method that cannot be translated to SQL:
+```csharp
+Visibility = new EnumValue { Id = (int)v.Visibility, Value = v.Visibility.ToString() },
+```
+
 ### Integration with VideoProcessor (Go)
 
 The VideoProcessor is a separate service at `../VideoProcessor`. Integration points:
