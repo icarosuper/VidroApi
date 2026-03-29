@@ -44,14 +44,6 @@ public class Channel : BaseAuditableEntity
         SetUpdatedAt(now);
     }
 
-    public void IncrementFollowerCount() => FollowerCount++;
-    public void DecrementFollowerCount()
-    {
-        if (FollowerCount == 0)
-            throw new InvalidOperationException("Cannot decrement follower count below zero.");
-        FollowerCount--;
-    }
-
     // Navigation properties
     public User User { get; init; } = null!;
 

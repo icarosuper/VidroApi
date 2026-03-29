@@ -73,37 +73,4 @@ public class VideoTests
         video.UpdatedAt.Should().Be(updatedAt);
     }
 
-    [Fact]
-    public void IncrementViewCount_ShouldIncreaseByOne()
-    {
-        var video = new Video(ChannelId, "My Video", null, [], VideoVisibility.Public, Now.AddHours(2), Now);
-
-        video.IncrementViewCount();
-        video.IncrementViewCount();
-
-        video.ViewCount.Should().Be(2);
-    }
-
-    [Fact]
-    public void LikeCount_ShouldIncrementAndDecrement()
-    {
-        var video = new Video(ChannelId, "My Video", null, [], VideoVisibility.Public, Now.AddHours(2), Now);
-
-        video.IncrementLikeCount();
-        video.IncrementLikeCount();
-        video.DecrementLikeCount();
-
-        video.LikeCount.Should().Be(1);
-    }
-
-    [Fact]
-    public void DislikeCount_ShouldIncrementAndDecrement()
-    {
-        var video = new Video(ChannelId, "My Video", null, [], VideoVisibility.Public, Now.AddHours(2), Now);
-
-        video.IncrementDislikeCount();
-        video.DecrementDislikeCount();
-
-        video.DislikeCount.Should().Be(0);
-    }
 }

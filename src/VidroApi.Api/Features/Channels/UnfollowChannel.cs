@@ -51,9 +51,11 @@ public static class UnfollowChannel
                 return Errors.Channel.NotFollowing();
 
             db.ChannelFollowers.Remove(follower!);
-            channel.DecrementFollowerCount();
-
             await db.SaveChangesAsync(ct);
+
+            await db.Channels
+                .Where(c => c.Id == cmd.ChannelId)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.FollowerCount, c => c.FollowerCount - 1), ct);
 
             return UnitResult.Success<Error>();
         }

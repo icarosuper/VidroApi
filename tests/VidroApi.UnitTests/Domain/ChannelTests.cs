@@ -42,36 +42,4 @@ public class ChannelTests
         channel.UpdatedAt.Should().Be(updatedAt);
     }
 
-    [Fact]
-    public void IncrementFollowerCount_ShouldIncreaseCountByOne()
-    {
-        var channel = new Channel(UserId, "My Channel", null, Now);
-
-        channel.IncrementFollowerCount();
-        channel.IncrementFollowerCount();
-
-        channel.FollowerCount.Should().Be(2);
-    }
-
-    [Fact]
-    public void DecrementFollowerCount_ShouldDecreaseCountByOne()
-    {
-        var channel = new Channel(UserId, "My Channel", null, Now);
-        channel.IncrementFollowerCount();
-        channel.IncrementFollowerCount();
-
-        channel.DecrementFollowerCount();
-
-        channel.FollowerCount.Should().Be(1);
-    }
-
-    [Fact]
-    public void DecrementFollowerCount_ShouldThrow_WhenCountIsZero()
-    {
-        var channel = new Channel(UserId, "My Channel", null, Now);
-
-        var act = () => channel.DecrementFollowerCount();
-
-        act.Should().Throw<InvalidOperationException>();
-    }
 }

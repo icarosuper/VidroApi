@@ -87,12 +87,6 @@ public class Video : BaseAuditableEntity
         SetUpdatedAt(now);
     }
 
-    public void IncrementViewCount() => ViewCount++;
-    public void IncrementLikeCount() => LikeCount++;
-    public void DecrementLikeCount() => LikeCount--;
-    public void IncrementDislikeCount() => DislikeCount++;
-    public void DecrementDislikeCount() => DislikeCount--;
-
     // Navigation properties
     public Channel Channel { get; init; } = null!;
     public VideoArtifacts? Artifacts { get; private set; }
