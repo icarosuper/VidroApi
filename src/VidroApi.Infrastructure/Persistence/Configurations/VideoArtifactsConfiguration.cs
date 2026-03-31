@@ -29,7 +29,7 @@ public class VideoArtifactsConfiguration : IEntityTypeConfiguration<VideoArtifac
         builder.Property(a => a.HlsPath)
             .HasColumnName("hls_path")
             .HasMaxLength(VideoArtifacts.PathMaxLength)
-            .IsRequired();
+            .IsRequired(false);
 
         builder.Property(a => a.AudioPath)
             .HasColumnName("audio_path")

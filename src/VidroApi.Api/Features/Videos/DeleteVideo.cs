@@ -92,7 +92,8 @@ public static class DeleteVideo
             db.PendingStorageCleanups.Add(new PendingStorageCleanup(video.Artifacts.ProcessedPath, isPrefix: false, now));
             db.PendingStorageCleanups.Add(new PendingStorageCleanup(video.Artifacts.PreviewPath, isPrefix: false, now));
             db.PendingStorageCleanups.Add(new PendingStorageCleanup(video.Artifacts.AudioPath, isPrefix: false, now));
-            db.PendingStorageCleanups.Add(new PendingStorageCleanup(video.Artifacts.HlsPath, isPrefix: true, now));
+            if (video.Artifacts.HlsPath is not null)
+                db.PendingStorageCleanups.Add(new PendingStorageCleanup(video.Artifacts.HlsPath, isPrefix: true, now));
             db.PendingStorageCleanups.Add(new PendingStorageCleanup($"thumbnails/{video.Id}/", isPrefix: true, now));
         }
     }

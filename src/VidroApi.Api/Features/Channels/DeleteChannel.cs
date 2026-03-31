@@ -84,7 +84,8 @@ public static class DeleteChannel
                 db.PendingStorageCleanups.Add(new PendingStorageCleanup(artifact.ProcessedPath, isPrefix: false, now));
                 db.PendingStorageCleanups.Add(new PendingStorageCleanup(artifact.PreviewPath, isPrefix: false, now));
                 db.PendingStorageCleanups.Add(new PendingStorageCleanup(artifact.AudioPath, isPrefix: false, now));
-                db.PendingStorageCleanups.Add(new PendingStorageCleanup(artifact.HlsPath, isPrefix: true, now));
+                if (artifact.HlsPath is not null)
+                    db.PendingStorageCleanups.Add(new PendingStorageCleanup(artifact.HlsPath, isPrefix: true, now));
                 db.PendingStorageCleanups.Add(new PendingStorageCleanup($"thumbnails/{artifact.VideoId}/", isPrefix: true, now));
             }
         }
