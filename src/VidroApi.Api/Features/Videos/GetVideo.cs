@@ -2,11 +2,14 @@ using System.Security.Claims;
 using CSharpFunctionalExtensions;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using VidroApi.Api.Common;
 using VidroApi.Api.Extensions;
+using VidroApi.Application.Abstractions;
 using VidroApi.Domain.Enums;
 using VidroApi.Domain.Errors;
 using VidroApi.Infrastructure.Persistence;
+using VidroApi.Infrastructure.Settings;
 
 namespace VidroApi.Api.Features.Videos;
 
@@ -32,6 +35,8 @@ public static class GetVideo
         public int LikeCount { get; init; }
         public int DislikeCount { get; init; }
         public int CommentCount { get; init; }
+        public string? ThumbnailUrl { get; init; }
+        public string? VideoUrl { get; init; }
         public DateTimeOffset CreatedAt { get; init; }
     }
 
@@ -50,15 +55,21 @@ public static class GetVideo
             return result.ToApiResult(StatusCodes.Status200OK);
         });
 
-    public class Handler(AppDbContext db)
+    public class Handler(AppDbContext db, IMinioService minio, IOptions<MinioSettings> minioOptions)
         : IRequestHandler<Command, Result<Response, Error>>
     {
+        private readonly TimeSpan _thumbnailUrlTtl = TimeSpan.FromHours(minioOptions.Value.ThumbnailUrlTtlHours);
+        private readonly TimeSpan _videoUrlTtl = TimeSpan.FromHours(minioOptions.Value.VideoUrlTtlHours);
+
         public async ValueTask<Result<Response, Error>> Handle(Command cmd, CancellationToken ct)
         {
             var video = await FetchVideo(cmd.VideoId, cmd.RequestingUserId, ct);
 
             if (video is null)
                 return CommonErrors.NotFound(nameof(Domain.Entities.Video), cmd.VideoId);
+
+            var thumbnailUrl = await GenerateUrlAsync(video.Artifacts?.ThumbnailPaths.FirstOrDefault(), _thumbnailUrlTtl);
+            var videoUrl = await GenerateUrlAsync(video.Artifacts?.ProcessedPath, _videoUrlTtl);
 
             return new Response
             {
@@ -74,6 +85,8 @@ public static class GetVideo
                 LikeCount = video.LikeCount,
                 DislikeCount = video.DislikeCount,
                 CommentCount = video.CommentCount,
+                ThumbnailUrl = thumbnailUrl,
+                VideoUrl = videoUrl,
                 CreatedAt = video.CreatedAt
             };
         }
@@ -82,10 +95,19 @@ public static class GetVideo
         {
             return db.Videos
                 .Include(v => v.Channel)
+                .Include(v => v.Artifacts)
                 .FirstOrDefaultAsync(v => v.Id == videoId
                     && (v.Channel.UserId == requestingUserId
                         || (v.Status == VideoStatus.Ready && v.Visibility != VideoVisibility.Private)),
                     ct);
+        }
+
+        private async Task<string?> GenerateUrlAsync(string? path, TimeSpan ttl)
+        {
+            if (path is null)
+                return null;
+
+            return await minio.GenerateDownloadUrlAsync(path, ttl);
         }
     }
 }
