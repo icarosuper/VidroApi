@@ -54,7 +54,10 @@ public static class DeleteVideo
             await DeleteRelatedEntities(cmd.VideoId, ct);
             StageStorageCleanup(video, clock.UtcNow);
 
-            db.Videos.Remove(video);
+            var deletedVideoRows = await db.Videos.Where(v => v.Id == cmd.VideoId).ExecuteDeleteAsync(ct);
+            if (deletedVideoRows == 0)
+                return CommonErrors.NotFound(nameof(Video), cmd.VideoId);
+
             await db.SaveChangesAsync(ct);
 
             await tx.CommitAsync(ct);
