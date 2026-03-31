@@ -1,12 +1,14 @@
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 using VidroApi.Application.Abstractions;
+using VidroApi.Infrastructure.Settings;
 
 namespace VidroApi.Infrastructure.Services;
 
-public class RedisJobQueueService(IConnectionMultiplexer redis) : IJobQueueService
+public class RedisJobQueueService(IConnectionMultiplexer redis, IOptions<JobQueueSettings> options) : IJobQueueService
 {
-    private const string QueueName = "PROCESSING_REQUEST_QUEUE";
+    private readonly string _queueName = options.Value.QueueName;
 
     public async Task PublishJobAsync(string videoId, string callbackUrl, CancellationToken ct = default)
     {
@@ -26,6 +28,6 @@ public class RedisJobQueueService(IConnectionMultiplexer redis) : IJobQueueServi
             JsonSerializer.Serialize(jobState),
             TimeSpan.FromHours(24));
 
-        await db.ListLeftPushAsync(QueueName, videoId);
+        await db.ListLeftPushAsync(_queueName, videoId);
     }
 }
