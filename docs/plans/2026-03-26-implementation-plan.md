@@ -2411,7 +2411,7 @@ dotnet ef migrations add AddPlaylists --project src/VidroApi.Infrastructure --st
 
 ---
 
-## Task 20: Videos — UploadVideoThumbnail
+## Task 20: ✅ Videos — UploadVideoThumbnail
 
 **Descrição:** Permite ao dono do vídeo fazer upload de uma thumbnail personalizada, substituindo as geradas automaticamente pelo VideoProcessor.
 
@@ -2442,7 +2442,7 @@ dotnet ef migrations add AddPlaylists --project src/VidroApi.Infrastructure --st
 
 ---
 
-## Task 21: Users — Foto de Perfil
+## Task 21: ✅ Users — Foto de Perfil
 
 **Descrição:** Usuários podem fazer upload de uma foto de perfil. Mesmo padrão de presigned URL.
 

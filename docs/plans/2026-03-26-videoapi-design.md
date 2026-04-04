@@ -64,10 +64,12 @@ A API valida a assinatura HMAC-SHA256 usando `WEBHOOK_SECRET` (mesma variável c
 |---|---|---|
 | `raw/{videoId}` | API (upload) | Vídeo original do usuário |
 | `processed/{videoId}_processed` | VideoProcessor | Vídeo transcodificado |
-| `thumbnails/{videoId}/` | VideoProcessor | 5 frames JPG |
+| `thumbnails/{videoId}/` | VideoProcessor | 5 frames JPG automáticos |
+| `thumbnails/{videoId}/custom` | API (upload) | Thumbnail personalizada pelo dono |
 | `audio/{videoId}.mp3` | VideoProcessor | Track de áudio |
 | `preview/{videoId}_preview.mp4` | VideoProcessor | Prévia baixa qualidade |
 | `hls/{videoId}/` | VideoProcessor | Segmentos HLS + playlist |
+| `avatars/{userId}` | API (upload) | Foto de perfil do usuário |
 
 ---
 
@@ -149,6 +151,7 @@ Users
   Username      text UNIQUE NOT NULL
   Email         text UNIQUE NOT NULL
   PasswordHash  text NOT NULL
+  AvatarPath    text                        -- path no MinIO (avatars/{userId}), nullable
   CreatedAt     timestamptz NOT NULL
 
 Channels
@@ -179,13 +182,14 @@ Videos
   CreatedAt       timestamptz NOT NULL
   UpdatedAt       timestamptz NOT NULL
 
-VideoArtifacts                    -- populado após processamento
-  VideoId         uuid PK FK → Videos
-  VideoPath       text
-  ThumbnailsPath  text
-  AudioPath       text
-  PreviewPath     text
-  HlsPath         text
+VideoArtifacts                       -- populado após processamento
+  VideoId               uuid PK FK → Videos
+  ProcessedPath         text
+  ThumbnailPaths        text[]          -- 5 frames gerados pelo VideoProcessor
+  AudioPath             text
+  PreviewPath           text
+  HlsPath               text
+  CustomThumbnailPath   text            -- thumbnail do dono (thumbnails/{id}/custom), nullable
 
 VideoMetadata                     -- populado após processamento
   VideoId     uuid PK FK → Videos
@@ -293,6 +297,10 @@ Videos
   GET    /videos/feed                 Vídeos recentes dos canais seguidos (cursor-based)
   GET    /videos/trending             Vídeos em alta (score por views + likes + tempo)
   DELETE /videos/{id}
+  POST   /videos/{id}/thumbnail       Presigned PUT URL para thumbnail personalizada
+
+Users
+  POST   /users/me/avatar             Presigned PUT URL para foto de perfil
 
 Reactions
   PUT    /videos/{id}/reaction        { type: "like" | "dislike" }  — upsert

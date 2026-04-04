@@ -105,8 +105,10 @@ All code must be in English: class names, method names, variables, test names, l
 ## Working style
 
 After each implementation step:
-1. **Suggest a commit message in Portuguese** — the user reviews and commits manually. Never commit without being asked.
-2. **Show the next possible steps** — brief list so the user can choose what to implement next.
+1. **Run all tests** — `dotnet test` after finishing a feature. Fix any failures before proceeding.
+2. **Update relevant docs** — reflect any schema, endpoint, or design changes in `docs/plans/`. Mark completed tasks as ✅ in the implementation plan.
+3. **Suggest a commit message in Portuguese** — the user reviews and commits manually. Never commit without being asked.
+4. **Show the next possible steps** — brief list so the user can choose what to implement next.
 
 ## Commands
 
