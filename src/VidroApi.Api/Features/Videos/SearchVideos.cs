@@ -14,39 +14,28 @@ using VidroApi.Infrastructure.Settings;
 
 namespace VidroApi.Api.Features.Videos;
 
-public static class ListChannelVideos
+public static class SearchVideos
 {
     public record Command : IRequest<Result<Response, Error>>
     {
-        public Guid ChannelId { get; init; }
-        public Guid? RequestingUserId { get; init; }
+        public string Query { get; init; } = null!;
         public DateTimeOffset? Cursor { get; init; }
         public int Limit { get; init; }
-    }
-
-    public class Validator : AbstractValidator<Command>
-    {
-        public Validator(IOptions<ListChannelVideosSettings> options)
-        {
-            RuleFor(x => x.Limit)
-                .InclusiveBetween(1, options.Value.MaxLimit)
-                .WithMessage(x => $"Limit must be between 1 and {options.Value.MaxLimit}.");
-        }
     }
 
     public record Response
     {
         public List<VideoSummary> Videos { get; init; } = [];
         public DateTimeOffset? NextCursor { get; init; }
-        
+
         public record VideoSummary
         {
             public Guid VideoId { get; init; }
+            public Guid ChannelId { get; init; }
+            public string ChannelName { get; init; } = null!;
             public string Title { get; init; } = null!;
             public string? Description { get; init; }
             public List<string> Tags { get; init; } = [];
-            public EnumValue Visibility { get; init; } = null!;
-            public EnumValue Status { get; init; } = null!;
             public int ViewCount { get; init; }
             public int LikeCount { get; init; }
             public string? ThumbnailUrl { get; init; }
@@ -54,23 +43,26 @@ public static class ListChannelVideos
         }
     }
 
+    public class Validator : AbstractValidator<Command>
+    {
+        public Validator(IOptions<SearchSettings> options)
+        {
+            RuleFor(x => x.Query).NotEmpty().MaximumLength(200);
+            RuleFor(x => x.Limit)
+                .InclusiveBetween(1, options.Value.MaxLimit)
+                .WithMessage(x => $"Limit must be between 1 and {options.Value.MaxLimit}.");
+        }
+    }
+
     public static void MapEndpoint(IEndpointRouteBuilder app) =>
-        app.MapGet("/v1/channels/{channelId:guid}/videos", async (
-            Guid channelId,
-            ClaimsPrincipal user,
-            IMediator mediator,
-            DateTimeOffset? cursor,
+        app.MapGet("/v1/videos/search", async (
+            string q,
             int limit,
+            DateTimeOffset? cursor,
+            IMediator mediator,
             CancellationToken ct = default) =>
         {
-            Guid? requestingUserId = user.Identity?.IsAuthenticated == true ? user.GetUserId() : null;
-            var cmd = new Command
-            {
-                ChannelId = channelId,
-                RequestingUserId = requestingUserId,
-                Cursor = cursor,
-                Limit = limit
-            };
+            var cmd = new Command { Query = q, Cursor = cursor, Limit = limit };
             var result = await mediator.Send(cmd, ct);
             return result.ToApiResult(StatusCodes.Status200OK);
         });
@@ -82,15 +74,10 @@ public static class ListChannelVideos
 
         public async ValueTask<Result<Response, Error>> Handle(Command cmd, CancellationToken ct)
         {
-            var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == cmd.ChannelId, ct);
-            if (channel is null)
-                return CommonErrors.NotFound(nameof(Domain.Entities.Channel), cmd.ChannelId);
+            var videos = await FetchMatchingVideos(cmd.Query, cmd.Cursor, cmd.Limit, ct);
 
-            var isOwner = channel.UserId == cmd.RequestingUserId;
-            var videos = await FetchChannelVideos(cmd.ChannelId, isOwner, cmd.Cursor, cmd.Limit, ct);
-
-            var thumbnailUrls = await GetThumbnails(videos);
-            var summaries = videos.Select((v, i) => MapToSummary(v, thumbnailUrls[i])).ToList();
+            var thumbnails = await Task.WhenAll(videos.Select(GenerateThumbnailUrl));
+            var summaries = videos.Select((v, i) => MapToSummary(v, thumbnails[i])).ToList();
 
             var nextCursor = videos.Count == cmd.Limit
                 ? videos[^1].CreatedAt
@@ -103,48 +90,40 @@ public static class ListChannelVideos
             };
         }
 
-        private static Response.VideoSummary MapToSummary(Domain.Entities.Video video, string? thumbnailUrl)
+        private Task<List<Domain.Entities.Video>> FetchMatchingVideos(
+            string query, DateTimeOffset? cursor, int limit, CancellationToken ct)
         {
-            return new Response.VideoSummary
-            {
-                VideoId = video.Id,
-                Title = video.Title,
-                Description = video.Description,
-                Tags = video.Tags,
-                Visibility = new EnumValue { Id = (int)video.Visibility, Value = video.Visibility.ToString() },
-                Status = new EnumValue { Id = (int)video.Status, Value = video.Status.ToString() },
-                ViewCount = video.ViewCount,
-                LikeCount = video.LikeCount,
-                ThumbnailUrl = thumbnailUrl,
-                CreatedAt = video.CreatedAt
-            };
-        }
-
-        private Task<List<Domain.Entities.Video>> FetchChannelVideos(
-            Guid channelId, bool isOwner, DateTimeOffset? cursor, int limit, CancellationToken ct)
-        {
-            var query = db.Videos
+            var pattern = $"%{query}%";
+            var q = db.Videos
+                .Include(v => v.Channel)
                 .Include(v => v.Artifacts)
-                .Where(v => v.ChannelId == channelId)
-                .AsQueryable();
-
-            if (!isOwner)
-                query = query.Where(v => v.Visibility == VideoVisibility.Public
-                                         && v.Status == VideoStatus.Ready);
+                .Where(v => v.Status == VideoStatus.Ready && v.Visibility == VideoVisibility.Public)
+                .Where(v => EF.Functions.ILike(v.Title, pattern) || v.Tags.Any(t => EF.Functions.ILike(t, pattern)));
 
             if (cursor.HasValue)
-                query = query.Where(v => v.CreatedAt < cursor.Value);
+                q = q.Where(v => v.CreatedAt < cursor.Value);
 
-            return query
+            return q
                 .OrderByDescending(v => v.CreatedAt)
                 .Take(limit)
                 .ToListAsync(ct);
         }
 
-        private async Task<List<string?>> GetThumbnails(List<Domain.Entities.Video> videos)
+        private static Response.VideoSummary MapToSummary(Domain.Entities.Video video, string? thumbnailUrl)
         {
-            var thumbs = await Task.WhenAll(videos.Select(GenerateThumbnailUrl));
-            return thumbs.ToList();
+            return new Response.VideoSummary
+            {
+                VideoId = video.Id,
+                ChannelId = video.ChannelId,
+                ChannelName = video.Channel.Name,
+                Title = video.Title,
+                Description = video.Description,
+                Tags = video.Tags,
+                ViewCount = video.ViewCount,
+                LikeCount = video.LikeCount,
+                ThumbnailUrl = thumbnailUrl,
+                CreatedAt = video.CreatedAt
+            };
         }
 
         private async Task<string?> GenerateThumbnailUrl(Domain.Entities.Video video)

@@ -233,7 +233,7 @@ Visibility = new EnumValue { Id = (int)v.Visibility, Value = v.Visibility.ToStri
 The VideoProcessor is a separate service at `../VideoProcessor`. Integration points:
 
 1. **Upload** — API writes raw video to MinIO at `raw/{videoId}` via presigned PUT URL (client uploads directly, never through the API).
-2. **Enqueue** — `IJobQueueService.PublishJobAsync(videoId, callbackUrl)` writes a `job:{videoId}` key to Redis and pushes `videoId` to `PROCESSING_REQUEST_QUEUE`.
+2. **Enqueue** — `IJobQueueService.PublishJobAsync(videoId, callbackUrl)` writes a `job:{videoId}` key to Redis and pushes `videoId` to `video_queue`.
 3. **Webhook** — VideoProcessor calls `POST /webhooks/video-processed` when done. Validated with HMAC-SHA256 (`X-Webhook-Signature: sha256=...`). Secret is shared via `Webhook:Secret` config.
 
 ### MinIO object paths (shared contract with VideoProcessor)

@@ -20,4 +20,10 @@ public class MinioSettings
 
     [Required, Range(1, int.MaxValue)]
     public int UploadUrlTtlHours { get; set; }
+
+    [Required, Range(1, int.MaxValue)]
+    public int ThumbnailUrlTtlHours { get; set; }
+
+    [Required, Range(1, int.MaxValue)]
+    public int VideoUrlTtlHours { get; set; }
 }

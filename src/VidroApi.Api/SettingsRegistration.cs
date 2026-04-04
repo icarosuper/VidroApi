@@ -70,5 +70,15 @@ public static class SettingsRegistration
             .BindConfiguration("StorageCleanupSettings")
             .ValidateDataAnnotations()
             .ValidateOnStart();
+
+        services.AddOptions<JobQueueSettings>()
+            .BindConfiguration("JobQueueSettings")
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<SearchSettings>()
+            .BindConfiguration("SearchSettings")
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
     }
 }

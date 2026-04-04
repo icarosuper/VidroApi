@@ -2471,22 +2471,18 @@ dotnet ef migrations add AddPlaylists --project src/VidroApi.Infrastructure --st
 
 ---
 
-## Task 22: Videos — Contagem de Visualizações (decisão pendente)
+## Task 22: Videos — Contagem de Visualizações ✅
 
 **Descrição:** Definir e implementar como `ViewCount` é incrementado.
 
-**Opções em aberto:**
+**Decisão:** Opção D — endpoint `POST /v1/videos/{videoId}/view` com deduplicação via Redis.
 
-| Opção | Prós | Contras |
-|-------|------|---------|
-| **A) Incrementar no `GetVideo`** | Simples de implementar | Conta bots, refreshes, chamadas da API — número inflado e pouco confiável |
-| **B) Endpoint dedicado `POST /v1/videos/{videoId}/view`** | Controle total no front (dispara após X segundos assistidos) | Depende do front ser honesto; fácil de fazer bots chamarem |
-| **C) Front envia após % assistida (ex: 30%)** | Mais próximo de "visualização real" | Mesma vulnerabilidade que B; requer lógica no front |
-| **D) Combinação: endpoint + debounce por usuário no backend** | Confiável — um usuário só conta uma vez por janela de tempo | Requer Redis para debounce (TTL por `userId+videoId`); mais complexo |
+**Implementado em:** `src/VidroApi.Api/Features/Videos/RegisterVideoView.cs`
 
-**Recomendação:** Opção D — endpoint `POST /v1/videos/{videoId}/view` com debounce no Redis (`view:{userId}:{videoId}` com TTL de 24h para autenticados; por IP para anônimos). É o padrão usado por plataformas sérias.
-
-**Decisão:** ⚠️ Pendente — escolher opção antes de implementar.
+- Endpoint `POST /v1/videos/{videoId}/view` — não requer autenticação (anônimos podem gerar views)
+- Incremento atômico via `ExecuteUpdateAsync`
+- Deduplicação: chave Redis `view:{videoId}:{userId}` (autenticados) ou `view:{videoId}:{ip}` (anônimos), TTL configurável via `VideoSettings:ViewDeduplicationWindowHours` (padrão: 1 hora)
+- View duplicada dentro da janela retorna `200 OK` silenciosamente
 
 ---
 
@@ -2551,7 +2547,7 @@ ReorderPlaylistItems.MapEndpoint(app);
 4. Tasks 12–15 (Videos) — core da plataforma
 5. Task 20 (UploadVideoThumbnail) — depende de vídeo pronto
 6. Task 21 (Foto de perfil) — independente, pode ser feito a qualquer momento
-7. Task 22 (ViewCount) — ⚠️ decisão pendente antes de implementar
+7. Task 22 (ViewCount) — ✅ implementado
 8. Tasks 16–17 (Reactions + Comments) — features sociais
 9. Task 19 (Playlists) — depende de vídeos estar pronto
 10. Task 18 (Integration Tests) — validação end-to-end

@@ -67,7 +67,7 @@ public class ListChannelVideosTests(ApiFactory factory) : IClassFixture<ApiFacto
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var videos = body.GetProperty("data").GetProperty("videos");
         videos.GetArrayLength().Should().Be(1);
-        videos[0].GetProperty("status").GetString().Should().Be("Ready");
+        videos[0].GetProperty("status").GetProperty("value").GetString().Should().Be("Ready");
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public class ListChannelVideosTests(ApiFactory factory) : IClassFixture<ApiFacto
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var videos = body.GetProperty("data").GetProperty("videos");
         videos.GetArrayLength().Should().Be(1);
-        videos[0].GetProperty("status").GetString().Should().Be("PendingUpload");
+        videos[0].GetProperty("status").GetProperty("value").GetString().Should().Be("PendingUpload");
     }
 
     [Fact]

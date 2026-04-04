@@ -43,7 +43,7 @@ public class WebhookTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await getResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        body.GetProperty("data").GetProperty("status").GetString().Should().Be("Processing");
+        body.GetProperty("data").GetProperty("status").GetProperty("value").GetString().Should().Be("Processing");
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public class WebhookTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await getResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        body.GetProperty("data").GetProperty("status").GetString().Should().Be("Ready");
+        body.GetProperty("data").GetProperty("status").GetProperty("value").GetString().Should().Be("Ready");
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public class WebhookTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await getResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        body.GetProperty("data").GetProperty("status").GetString().Should().Be("Failed");
+        body.GetProperty("data").GetProperty("status").GetProperty("value").GetString().Should().Be("Failed");
     }
 
     [Fact]

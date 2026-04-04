@@ -42,7 +42,7 @@ public class VideoProcessedTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         var body = await getResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var data = body.GetProperty("data");
-        data.GetProperty("status").GetString().Should().Be("Ready");
+        data.GetProperty("status").GetProperty("value").GetString().Should().Be("Ready");
     }
 
     [Fact]
