@@ -24,6 +24,7 @@ public static class GetChannel
         public string Name { get; init; } = null!;
         public string? Description { get; init; }
         public int FollowerCount { get; init; }
+        public Guid OwnerId { get; init; }
         public string OwnerUsername { get; init; } = null!;
         public string? AvatarUrl { get; init; }
         public string? OwnerAvatarUrl { get; init; }
@@ -66,6 +67,7 @@ public static class GetChannel
                 Name = channel.Name,
                 Description = channel.Description,
                 FollowerCount = channel.FollowerCount,
+                OwnerId = channel.UserId,
                 OwnerUsername = channel.User.Username,
                 AvatarUrl = avatarUrl,
                 OwnerAvatarUrl = ownerAvatarUrl
