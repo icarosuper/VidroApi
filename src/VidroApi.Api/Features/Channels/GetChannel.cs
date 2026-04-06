@@ -26,6 +26,7 @@ public static class GetChannel
         public int FollowerCount { get; init; }
         public string OwnerUsername { get; init; } = null!;
         public string? AvatarUrl { get; init; }
+        public string? OwnerAvatarUrl { get; init; }
     }
 
     public static void MapEndpoint(IEndpointRouteBuilder app) =>
@@ -57,6 +58,7 @@ public static class GetChannel
                 return CommonErrors.NotFound(nameof(Channel), cmd.ChannelId);
 
             var avatarUrl = await GenerateAvatarUrl(channel.AvatarPath);
+            var ownerAvatarUrl = await GenerateAvatarUrl(channel.User.AvatarPath);
 
             return new Response
             {
@@ -65,7 +67,8 @@ public static class GetChannel
                 Description = channel.Description,
                 FollowerCount = channel.FollowerCount,
                 OwnerUsername = channel.User.Username,
-                AvatarUrl = avatarUrl
+                AvatarUrl = avatarUrl,
+                OwnerAvatarUrl = ownerAvatarUrl
             };
         }
 
