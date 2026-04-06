@@ -49,7 +49,7 @@ public static class ListFeedVideos
             public List<string> Tags { get; init; } = [];
             public int ViewCount { get; init; }
             public int LikeCount { get; init; }
-            public string? ThumbnailUrl { get; init; }
+            public List<string> ThumbnailUrls { get; init; } = [];
             public DateTimeOffset CreatedAt { get; init; }
         }
     }
@@ -80,8 +80,8 @@ public static class ListFeedVideos
         {
             var videos = await FetchFeedVideos(cmd.UserId, cmd.Cursor, cmd.Limit, ct);
 
-            var thumbnailUrls = await GetThumbnails(videos);
-            var summaries = BuildSummaries(videos, thumbnailUrls);
+            var thumbnailUrlLists = await GetThumbnails(videos);
+            var summaries = BuildSummaries(videos, thumbnailUrlLists);
             var nextCursor = videos.Count == cmd.Limit
                 ? videos[^1].CreatedAt
                 : (DateTimeOffset?)null;
@@ -93,12 +93,12 @@ public static class ListFeedVideos
             };
         }
 
-        private static List<Response.VideoSummary> BuildSummaries(List<Domain.Entities.Video> videos, List<string?> thumbnailUrls)
+        private static List<Response.VideoSummary> BuildSummaries(List<Domain.Entities.Video> videos, List<List<string>> thumbnailUrlLists)
         {
-            return videos.Select((v, i) => MapToSummary(v, thumbnailUrls[i])).ToList();
+            return videos.Select((v, i) => MapToSummary(v, thumbnailUrlLists[i])).ToList();
         }
 
-        private static Response.VideoSummary MapToSummary(Domain.Entities.Video video, string? thumbnailUrl)
+        private static Response.VideoSummary MapToSummary(Domain.Entities.Video video, List<string> thumbnailUrls)
         {
             return new Response.VideoSummary
             {
@@ -110,7 +110,7 @@ public static class ListFeedVideos
                 Tags = video.Tags,
                 ViewCount = video.ViewCount,
                 LikeCount = video.LikeCount,
-                ThumbnailUrl = thumbnailUrl,
+                ThumbnailUrls = thumbnailUrls,
                 CreatedAt = video.CreatedAt
             };
         }
@@ -132,20 +132,24 @@ public static class ListFeedVideos
                 .ToListAsync(ct);
         }
 
-        private async Task<List<string?>> GetThumbnails(List<Domain.Entities.Video> videos)
+        private async Task<List<List<string>>> GetThumbnails(List<Domain.Entities.Video> videos)
         {
-            var thumbs = await Task.WhenAll(videos.Select(GenerateThumbnailUrl));
+            var thumbs = await Task.WhenAll(videos.Select(GenerateThumbnailUrls));
             return thumbs.ToList();
         }
 
-        private Task<string?> GenerateThumbnailUrl(Domain.Entities.Video video)
+        private async Task<List<string>> GenerateThumbnailUrls(Domain.Entities.Video video)
         {
-            var firstThumbnail = video.Artifacts?.ThumbnailPaths.FirstOrDefault();
-            if (firstThumbnail is null)
-                return Task.FromResult<string?>(null);
+            if (video.Artifacts is null)
+                return [];
 
-            return minio.GenerateDownloadUrlAsync(firstThumbnail, ThumbnailUrlTtl)
-                .ContinueWith<string?>(t => t.Result, TaskContinuationOptions.ExecuteSynchronously);
+            var paths = new List<string>();
+            if (video.Artifacts.CustomThumbnailPath is not null)
+                paths.Add(video.Artifacts.CustomThumbnailPath);
+            paths.AddRange(video.Artifacts.ThumbnailPaths);
+
+            var urls = await Task.WhenAll(paths.Select(p => minio.GenerateDownloadUrlAsync(p, ThumbnailUrlTtl)));
+            return [..urls];
         }
     }
 }

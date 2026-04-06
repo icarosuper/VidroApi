@@ -35,7 +35,7 @@ public static class GetVideo
         public int LikeCount { get; init; }
         public int DislikeCount { get; init; }
         public int CommentCount { get; init; }
-        public string? ThumbnailUrl { get; init; }
+        public List<string> ThumbnailUrls { get; init; } = [];
         public string? VideoUrl { get; init; }
         public DateTimeOffset CreatedAt { get; init; }
     }
@@ -68,7 +68,7 @@ public static class GetVideo
             if (video is null)
                 return CommonErrors.NotFound(nameof(Domain.Entities.Video), cmd.VideoId);
 
-            var thumbnailUrl = await GenerateUrlAsync(video.Artifacts?.ThumbnailPaths.FirstOrDefault(), _thumbnailUrlTtl);
+            var thumbnailUrls = await GenerateThumbnailUrls(video.Artifacts);
             var videoUrl = await GenerateUrlAsync(video.Artifacts?.ProcessedPath, _videoUrlTtl);
 
             return new Response
@@ -85,7 +85,7 @@ public static class GetVideo
                 LikeCount = video.LikeCount,
                 DislikeCount = video.DislikeCount,
                 CommentCount = video.CommentCount,
-                ThumbnailUrl = thumbnailUrl,
+                ThumbnailUrls = thumbnailUrls,
                 VideoUrl = videoUrl,
                 CreatedAt = video.CreatedAt
             };
@@ -100,6 +100,20 @@ public static class GetVideo
                     && (v.Channel.UserId == requestingUserId
                         || (v.Status == VideoStatus.Ready && v.Visibility != VideoVisibility.Private)),
                     ct);
+        }
+
+        private async Task<List<string>> GenerateThumbnailUrls(Domain.Entities.VideoArtifacts? artifacts)
+        {
+            if (artifacts is null)
+                return [];
+
+            var paths = new List<string>();
+            if (artifacts.CustomThumbnailPath is not null)
+                paths.Add(artifacts.CustomThumbnailPath);
+            paths.AddRange(artifacts.ThumbnailPaths);
+
+            var urls = await Task.WhenAll(paths.Select(p => minio.GenerateDownloadUrlAsync(p, _thumbnailUrlTtl)));
+            return [..urls];
         }
 
         private async Task<string?> GenerateUrlAsync(string? path, TimeSpan ttl)

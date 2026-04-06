@@ -65,7 +65,7 @@ A API valida a assinatura HMAC-SHA256 usando `WEBHOOK_SECRET` (mesma variável c
 | `raw/{videoId}` | API (upload) | Vídeo original do usuário |
 | `processed/{videoId}_processed` | VideoProcessor | Vídeo transcodificado |
 | `thumbnails/{videoId}/` | VideoProcessor | 5 frames JPG automáticos |
-| `thumbnails/{videoId}/custom` | API (upload) | Thumbnail personalizada pelo dono |
+| `thumbnails/{videoId}/custom.jpg` | API (upload) | Thumbnail personalizada pelo dono |
 | `audio/{videoId}.mp3` | VideoProcessor | Track de áudio |
 | `preview/{videoId}_preview.mp4` | VideoProcessor | Prévia baixa qualidade |
 | `hls/{videoId}/` | VideoProcessor | Segmentos HLS + playlist |
@@ -189,7 +189,7 @@ VideoArtifacts                       -- populado após processamento
   AudioPath             text
   PreviewPath           text
   HlsPath               text
-  CustomThumbnailPath   text            -- thumbnail do dono (thumbnails/{id}/custom), nullable
+  CustomThumbnailPath   text            -- thumbnail do dono (thumbnails/{id}/custom.jpg), nullable
 
 VideoMetadata                     -- populado após processamento
   VideoId     uuid PK FK → Videos

@@ -2417,7 +2417,7 @@ dotnet ef migrations add AddPlaylists --project src/VidroApi.Infrastructure --st
 
 **Fluxo:** Mesmo padrão do upload de vídeo — API gera uma presigned PUT URL no MinIO e o cliente faz o upload diretamente. Não há webhook; a thumbnail fica disponível imediatamente após o upload.
 
-**Caminho no MinIO:** `thumbnails/{videoId}/custom` (separado das thumbs automáticas em `thumbnails/{videoId}/thumb{n}.jpg`).
+**Caminho no MinIO:** `thumbnails/{videoId}/custom.jpg` (separado das thumbs automáticas em `thumbnails/{videoId}/thumb{n}.jpg`).
 
 **Entities:**
 - `VideoArtifacts` — adicionar campo `CustomThumbnailPath` (`string?`, nullable até o dono fazer upload).
@@ -2438,7 +2438,7 @@ dotnet ef migrations add AddPlaylists --project src/VidroApi.Infrastructure --st
 - Vídeo precisa existir e o usuário ser o dono → 403/404 conforme padrão de visibilidade.
 - Não exige que o vídeo seja `Ready` — dono pode fazer upload de thumbnail em qualquer status.
 - Retorna `uploadUrl` e `expiresAt`, igual ao `CreateVideo`.
-- O campo `CustomThumbnailPath` em `VideoArtifacts` é preenchido na própria resposta (já sabemos o path antes do upload completar, pois é determinístico: `thumbnails/{videoId}/custom`).
+- O campo `CustomThumbnailPath` em `VideoArtifacts` é preenchido na própria resposta (já sabemos o path antes do upload completar, pois é determinístico: `thumbnails/{videoId}/custom.jpg`).
 
 ---
 

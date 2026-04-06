@@ -71,7 +71,7 @@ public class ListTrendingVideosTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     [Fact]
-    public async Task ListTrendingVideos_ReturnsThumbnailUrl()
+    public async Task ListTrendingVideos_ReturnsThumbnailUrls()
     {
         var (accessToken, channelId) = await CreateChannelAndGetIds();
         await CreateReadyVideoAsync(accessToken, channelId, "Video With Thumbnail");
@@ -80,7 +80,9 @@ public class ListTrendingVideosTests(ApiFactory factory) : IClassFixture<ApiFact
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var video = body.GetProperty("data").GetProperty("videos")[0];
 
-        video.GetProperty("thumbnailUrl").GetString().Should().NotBeNullOrWhiteSpace();
+        var thumbnailUrls = video.GetProperty("thumbnailUrls");
+        thumbnailUrls.GetArrayLength().Should().BeGreaterThan(0);
+        thumbnailUrls[0].GetString().Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]

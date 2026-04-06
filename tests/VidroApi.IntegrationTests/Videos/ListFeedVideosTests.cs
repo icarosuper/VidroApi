@@ -130,7 +130,7 @@ public class ListFeedVideosTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task ListFeedVideos_ReturnsThumbnailUrl()
+    public async Task ListFeedVideos_ReturnsThumbnailUrls()
     {
         var (creatorToken, channelId) = await CreateChannelAndGetIds();
         var (followerToken, _) = await CreateChannelAndGetIds();
@@ -143,7 +143,9 @@ public class ListFeedVideosTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var video = body.GetProperty("data").GetProperty("videos")[0];
-        video.GetProperty("thumbnailUrl").GetString().Should().NotBeNullOrWhiteSpace();
+        var thumbnailUrls = video.GetProperty("thumbnailUrls");
+        thumbnailUrls.GetArrayLength().Should().BeGreaterThan(0);
+        thumbnailUrls[0].GetString().Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]

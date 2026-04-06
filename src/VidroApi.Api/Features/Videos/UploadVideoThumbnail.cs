@@ -62,7 +62,7 @@ public static class UploadVideoThumbnail
                     : Errors.Video.NotOwner();
             }
 
-            var objectKey = $"thumbnails/{cmd.VideoId}/custom";
+            var objectKey = $"thumbnails/{cmd.VideoId}/custom.jpg";
             var ttlHours = minioOptions.Value.UploadUrlTtlHours;
             var ttl = TimeSpan.FromHours(ttlHours);
             var uploadExpiresAt = clock.UtcNow.AddHours(ttlHours);
