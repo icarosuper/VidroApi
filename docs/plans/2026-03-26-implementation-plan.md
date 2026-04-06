@@ -1469,6 +1469,20 @@ git commit -m "feat: add Auth/Login and Auth/RefreshToken slices"
 
 ---
 
+## Task 9.1: ✅ Auth — SignOut
+
+**Descrição:** Implementar endpoint para logout do usuário, revogando seu refresh token.
+
+**Implementado em:** `src/VidroApi.Api/Features/Auth/SignOut.cs`
+
+- Endpoint `POST /v1/auth/signout` — requer autenticação
+- Input: `RefreshToken` (body)
+- Remove o refresh token do banco (soft-delete ou remoção)
+- Previne reutilização do token
+- Validação: refresh token deve pertencer ao usuário autenticado
+
+---
+
 ## Task 10: ✅ Channels — CRUD
 
 **Files:**
@@ -2590,3 +2604,141 @@ ReorderPlaylistItems.MapEndpoint(app);
 8. Tasks 16–17 (Reactions + Comments) — features sociais
 9. Task 19 (Playlists) — depende de vídeos estar pronto
 10. Task 18 (Integration Tests) — validação end-to-end
+
+---
+
+## Task 23: ✅ Users — GetCurrentUser
+
+**Descrição:** Implementar endpoint para retorno dos dados do usuário autenticado.
+
+**Implementado em:** `src/VidroApi.Api/Features/Users/GetCurrentUser.cs`
+
+- Endpoint `GET /v1/users/me` — requer autenticação
+- Retorna dados completos do usuário: `UserId`, `Username`, `Email`, `AvatarUrl`
+- Gera URL presignada para avatar com TTL via MinIO
+
+---
+
+## Task 24: ✅ Channels — ListUserChannels
+
+**Descrição:** Listar todos os canais de um usuário específico.
+
+**Implementado em:** `src/VidroApi.Api/Features/Channels/ListUserChannels.cs`
+
+- Endpoint `GET /v1/users/{userId:guid}/channels` — sem autenticação obrigatória
+- Retorna lista de canais com `ChannelSummary`: id, nome, descrição, contagem de seguidores, avatar URL
+- Gera URLs presignadas para avatars dos canais com TTL via MinIO
+- Validação: retorna erro 404 se o usuário não existe
+
+---
+
+## Task 25: ✅ Videos — SearchVideos
+
+**Descrição:** Implementar busca de vídeos por query (título, descrição, tags).
+
+**Implementado em:** `src/VidroApi.Api/Features/Videos/SearchVideos.cs`
+
+- Endpoint `POST /v1/videos/search` — sem autenticação obrigatória
+- Entrada: `Query` (string obrigatória), `Cursor` (paginação), `Limit`
+- Retorna lista de `VideoSummary`: id, canal, título, tags, contadores, múltiplas thumbnails, data de criação
+- Paginação cursor-based com `NextCursor`
+- Validação: query entre `SearchSettings:MinQueryLength` e `SearchSettings:MaxQueryLength`
+
+---
+
+## Task 26: ✅ Channels — Melhorias em GetChannel
+
+**Descrição:** Adicionar dados do dono do canal no endpoint `GET /v1/channels/{channelId}`.
+
+**Implementado em:** `src/VidroApi.Api/Features/Channels/GetChannel.cs`
+
+- Campos adicionais na `Response`:
+  - `OwnerId` — ID do usuário dono do canal
+  - `OwnerUsername` — username do dono
+  - `OwnerAvatarUrl` — URL presignada do avatar do dono (gerada via MinIO)
+- Melhora UX ao permitir UI mostrar dados do dono sem chamadas adicionais
+
+---
+
+## Task 27: ✅ Videos — Suporte a Múltiplas Thumbnails
+
+**Descrição:** Retornar múltiplas thumbnails nos endpoints de listagem e busca de vídeos.
+
+**Implementado em:** Endpoints `ListChannelVideos`, `ListFeedVideos`, `ListTrendingVideos`, `SearchVideos`, `GetVideo`
+
+- Cada `VideoSummary` agora inclui `List<string> ThumbnailUrls`
+- Geradas a partir de `VideoMetadata.ThumbnailPaths`
+- URLs presignadas com TTL via MinIO
+- Permite UI exibir múltiplos frames do vídeo como preview
+
+---
+
+## Task 28: ✅ Comments — Melhorias na Feature de Comentários
+
+**Descrição:** Funcionalidades adicionais para comentários.
+
+**Implementado em:**
+- `src/VidroApi.Api/Features/Comments/EditComment.cs` — editar comentário existente
+- `src/VidroApi.Api/Features/Comments/ListReplies.cs` — listar respostas de um comentário
+- `src/VidroApi.Api/Features/Comments/ReactToComment.cs` — adicionar reação em comentário
+- `src/VidroApi.Api/Features/Comments/RemoveCommentReaction.cs` — remover reação de comentário
+
+**Endpoints adicionados:**
+- `PATCH /v1/comments/{commentId}` — editar comentário (apenas autor)
+- `GET /v1/comments/{commentId}/replies` — listar respostas com paginação cursor-based
+- `POST /v1/comments/{commentId}/reactions` — adicionar/alterar reação
+- `DELETE /v1/comments/{commentId}/reactions/{reactionType}` — remover reação
+
+---
+
+## Resumo dos Endpoints (Atualizado)
+
+Todos os endpoints implementados até agora:
+
+```csharp
+// Auth
+SignUp.MapEndpoint(app);
+SignIn.MapEndpoint(app);
+RenewToken.MapEndpoint(app);
+SignOut.MapEndpoint(app);
+
+// Channels
+CreateChannel.MapEndpoint(app);
+GetChannel.MapEndpoint(app);
+UpdateChannel.MapEndpoint(app);
+DeleteChannel.MapEndpoint(app);
+ListUserChannels.MapEndpoint(app);
+FollowChannel.MapEndpoint(app);
+UnfollowChannel.MapEndpoint(app);
+UploadChannelAvatar.MapEndpoint(app);
+
+// Videos
+CreateVideo.MapEndpoint(app);
+MinioUploadCompleted.MapEndpoint(app);
+ListChannelVideos.MapEndpoint(app);
+GetVideo.MapEndpoint(app);
+DeleteVideo.MapEndpoint(app);
+ListFeedVideos.MapEndpoint(app);
+ListTrendingVideos.MapEndpoint(app);
+SearchVideos.MapEndpoint(app);
+VideoProcessed.MapEndpoint(app);
+UploadVideoThumbnail.MapEndpoint(app);
+RegisterVideoView.MapEndpoint(app);
+
+// Users
+GetCurrentUser.MapEndpoint(app);
+UploadAvatar.MapEndpoint(app);
+
+// Reactions (Videos)
+ReactToVideo.MapEndpoint(app);
+RemoveReaction.MapEndpoint(app);
+
+// Comments
+AddComment.MapEndpoint(app);
+EditComment.MapEndpoint(app);
+ListComments.MapEndpoint(app);
+ListReplies.MapEndpoint(app);
+DeleteComment.MapEndpoint(app);
+ReactToComment.MapEndpoint(app);
+RemoveCommentReaction.MapEndpoint(app);
+```
