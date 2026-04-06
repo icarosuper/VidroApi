@@ -33,12 +33,13 @@ public static class SearchVideos
             public Guid VideoId { get; init; }
             public Guid ChannelId { get; init; }
             public string ChannelName { get; init; } = null!;
+            public string? ChannelAvatarUrl { get; init; }
             public string Title { get; init; } = null!;
             public string? Description { get; init; }
             public List<string> Tags { get; init; } = [];
             public int ViewCount { get; init; }
             public int LikeCount { get; init; }
-            public string? ThumbnailUrl { get; init; }
+            public List<string> ThumbnailUrls { get; init; } = [];
             public DateTimeOffset CreatedAt { get; init; }
         }
     }
@@ -76,8 +77,9 @@ public static class SearchVideos
         {
             var videos = await FetchMatchingVideos(cmd.Query, cmd.Cursor, cmd.Limit, ct);
 
-            var thumbnails = await Task.WhenAll(videos.Select(GenerateThumbnailUrl));
-            var summaries = videos.Select((v, i) => MapToSummary(v, thumbnails[i])).ToList();
+            var thumbnailUrlLists = await GetThumbnails(videos);
+            var avatarUrlByChannel = await GetChannelAvatarUrls(videos);
+            var summaries = videos.Select((v, i) => MapToSummary(v, thumbnailUrlLists[i], avatarUrlByChannel[v.ChannelId])).ToList();
 
             var nextCursor = videos.Count == cmd.Limit
                 ? videos[^1].CreatedAt
@@ -109,30 +111,60 @@ public static class SearchVideos
                 .ToListAsync(ct);
         }
 
-        private static Response.VideoSummary MapToSummary(Domain.Entities.Video video, string? thumbnailUrl)
+        private static Response.VideoSummary MapToSummary(Domain.Entities.Video video, List<string> thumbnailUrls, string? avatarUrl)
         {
             return new Response.VideoSummary
             {
                 VideoId = video.Id,
                 ChannelId = video.ChannelId,
                 ChannelName = video.Channel.Name,
+                ChannelAvatarUrl = avatarUrl,
                 Title = video.Title,
                 Description = video.Description,
                 Tags = video.Tags,
                 ViewCount = video.ViewCount,
                 LikeCount = video.LikeCount,
-                ThumbnailUrl = thumbnailUrl,
+                ThumbnailUrls = thumbnailUrls,
                 CreatedAt = video.CreatedAt
             };
         }
 
-        private async Task<string?> GenerateThumbnailUrl(Domain.Entities.Video video)
+        private async Task<List<string>> GenerateThumbnailUrls(Domain.Entities.Video video)
         {
-            var firstThumbnail = video.Artifacts?.ThumbnailPaths.FirstOrDefault();
-            if (firstThumbnail is null)
-                return null;
+            if (video.Artifacts is null)
+                return [];
 
-            return await minio.GenerateDownloadUrlAsync(firstThumbnail, _thumbnailUrlTtl);
+            var paths = new List<string>();
+            if (video.Artifacts.CustomThumbnailPath is not null)
+                paths.Add(video.Artifacts.CustomThumbnailPath);
+            paths.AddRange(video.Artifacts.ThumbnailPaths);
+
+            var urls = await Task.WhenAll(paths.Select(p => minio.GenerateDownloadUrlAsync(p, _thumbnailUrlTtl)));
+            return [..urls];
+        }
+
+        private async Task<List<List<string>>> GetThumbnails(List<Domain.Entities.Video> videos)
+        {
+            var thumbs = await Task.WhenAll(videos.Select(GenerateThumbnailUrls));
+            return thumbs.ToList();
+        }
+
+        private async Task<Dictionary<Guid, string?>> GetChannelAvatarUrls(List<Domain.Entities.Video> videos)
+        {
+            var distinctChannels = videos
+                .Select(v => v.Channel)
+                .DistinctBy(c => c.Id)
+                .ToList();
+
+            var entries = await Task.WhenAll(distinctChannels.Select(async c =>
+            {
+                var url = c.AvatarPath is null
+                    ? null
+                    : await minio.GenerateDownloadUrlAsync(c.AvatarPath, _thumbnailUrlTtl);
+                return (c.Id, url);
+            }));
+
+            return entries.ToDictionary(e => e.Id, e => e.url);
         }
     }
 }

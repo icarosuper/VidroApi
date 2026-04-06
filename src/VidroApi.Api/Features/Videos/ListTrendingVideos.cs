@@ -14,7 +14,6 @@ namespace VidroApi.Api.Features.Videos;
 
 public static class ListTrendingVideos
 {
-    private static readonly TimeSpan ThumbnailUrlTtl = TimeSpan.FromHours(1);
 
     public record Command : IRequest<Result<Response, Error>>
     {
@@ -38,12 +37,13 @@ public static class ListTrendingVideos
             public Guid VideoId { get; init; }
             public Guid ChannelId { get; init; }
             public string ChannelName { get; init; } = null!;
+            public string? ChannelAvatarUrl { get; init; }
             public string Title { get; init; } = null!;
             public string? Description { get; init; }
             public List<string> Tags { get; init; } = [];
             public int ViewCount { get; init; }
             public int LikeCount { get; init; }
-            public string? ThumbnailUrl { get; init; }
+            public List<string> ThumbnailUrls { get; init; } = [];
             public DateTimeOffset CreatedAt { get; init; }
         }
 
@@ -61,18 +61,20 @@ public static class ListTrendingVideos
             return result.ToApiResult(StatusCodes.Status200OK);
         });
 
-    public class Handler(AppDbContext db, IMinioService minio, IDateTimeProvider clock, IOptions<TrendingSettings> trendingOptions)
+    public class Handler(AppDbContext db, IMinioService minio, IDateTimeProvider clock, IOptions<TrendingSettings> trendingOptions, IOptions<MinioSettings> minioOptions)
         : IRequestHandler<Command, Result<Response, Error>>
     {
         private readonly TrendingSettings _trending = trendingOptions.Value;
+        private readonly TimeSpan _thumbnailUrlTtl = TimeSpan.FromHours(minioOptions.Value.ThumbnailUrlTtlHours);
 
         public async ValueTask<Result<Response, Error>> Handle(Command cmd, CancellationToken ct)
         {
             var windowStart = clock.UtcNow.AddHours(-_trending.WindowHours);
             var videos = await FetchTrendingVideos(windowStart, cmd.Limit, ct);
 
-            var thumbnailUrls = await GetThumbnails(videos);
-            var summaries = GetSummaries(videos, thumbnailUrls);
+            var thumbnailUrlLists = await GetThumbnails(videos);
+            var avatarUrlByChannel = await GetChannelAvatarUrls(videos);
+            var summaries = GetSummaries(videos, thumbnailUrlLists, avatarUrlByChannel);
 
             return new Response
             {
@@ -80,30 +82,34 @@ public static class ListTrendingVideos
             };
         }
 
-        private async Task<List<string?>> GetThumbnails(List<Domain.Entities.Video> videos)
+        private async Task<List<List<string>>> GetThumbnails(List<Domain.Entities.Video> videos)
         {
-            var thumbs = await Task.WhenAll(videos.Select(GenerateThumbnailUrl));
+            var thumbs = await Task.WhenAll(videos.Select(GenerateThumbnailUrls));
             return thumbs.ToList();
         }
 
-        private static List<Response.VideoSummary> GetSummaries(List<Domain.Entities.Video> videos, List<string?> thumbnailUrls)
+        private static List<Response.VideoSummary> GetSummaries(
+            List<Domain.Entities.Video> videos,
+            List<List<string>> thumbnailUrlLists,
+            Dictionary<Guid, string?> avatarUrlByChannel)
         {
-            return videos.Select((v, i) => MapToSummary(v, thumbnailUrls[i])).ToList();
+            return videos.Select((v, i) => MapToSummary(v, thumbnailUrlLists[i], avatarUrlByChannel[v.ChannelId])).ToList();
         }
 
-        private static Response.VideoSummary MapToSummary(Domain.Entities.Video video, string? thumbnailUrl)
+        private static Response.VideoSummary MapToSummary(Domain.Entities.Video video, List<string> thumbnailUrls, string? avatarUrl)
         {
             return new Response.VideoSummary
             {
                 VideoId = video.Id,
                 ChannelId = video.ChannelId,
                 ChannelName = video.Channel.Name,
+                ChannelAvatarUrl = avatarUrl,
                 Title = video.Title,
                 Description = video.Description,
                 Tags = video.Tags,
                 ViewCount = video.ViewCount,
                 LikeCount = video.LikeCount,
-                ThumbnailUrl = thumbnailUrl,
+                ThumbnailUrls = thumbnailUrls,
                 CreatedAt = video.CreatedAt
             };
         }
@@ -132,14 +138,36 @@ public static class ListTrendingVideos
                 .ToListAsync(ct);
         }
 
-        private Task<string?> GenerateThumbnailUrl(Domain.Entities.Video video)
+        private async Task<List<string>> GenerateThumbnailUrls(Domain.Entities.Video video)
         {
-            var firstThumbnail = video.Artifacts?.ThumbnailPaths.FirstOrDefault();
-            if (firstThumbnail is null)
-                return Task.FromResult<string?>(null);
+            if (video.Artifacts is null)
+                return [];
 
-            return minio.GenerateDownloadUrlAsync(firstThumbnail, ThumbnailUrlTtl)
-                .ContinueWith<string?>(t => t.Result, TaskContinuationOptions.ExecuteSynchronously);
+            var paths = new List<string>();
+            if (video.Artifacts.CustomThumbnailPath is not null)
+                paths.Add(video.Artifacts.CustomThumbnailPath);
+            paths.AddRange(video.Artifacts.ThumbnailPaths);
+
+            var urls = await Task.WhenAll(paths.Select(p => minio.GenerateDownloadUrlAsync(p, _thumbnailUrlTtl)));
+            return [..urls];
+        }
+
+        private async Task<Dictionary<Guid, string?>> GetChannelAvatarUrls(List<Domain.Entities.Video> videos)
+        {
+            var distinctChannels = videos
+                .Select(v => v.Channel)
+                .DistinctBy(c => c.Id)
+                .ToList();
+
+            var entries = await Task.WhenAll(distinctChannels.Select(async c =>
+            {
+                var url = c.AvatarPath is null
+                    ? null
+                    : await minio.GenerateDownloadUrlAsync(c.AvatarPath, _thumbnailUrlTtl);
+                return (c.Id, url);
+            }));
+
+            return entries.ToDictionary(e => e.Id, e => e.url);
         }
     }
 }

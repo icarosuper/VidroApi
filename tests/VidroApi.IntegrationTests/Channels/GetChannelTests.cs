@@ -38,6 +38,8 @@ public class GetChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
         data.GetProperty("description").GetString().Should().Be("A description");
         data.GetProperty("followerCount").GetInt32().Should().Be(0);
         data.GetProperty("ownerUsername").GetString().Should().Be(username);
+        data.GetProperty("avatarUrl").ValueKind.Should().Be(JsonValueKind.Null);
+        data.GetProperty("ownerAvatarUrl").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
     [Fact]

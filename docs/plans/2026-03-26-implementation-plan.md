@@ -1469,6 +1469,20 @@ git commit -m "feat: add Auth/Login and Auth/RefreshToken slices"
 
 ---
 
+## Task 9.1: ✅ Auth — SignOut
+
+**Descrição:** Implementar endpoint para logout do usuário, revogando seu refresh token.
+
+**Implementado em:** `src/VidroApi.Api/Features/Auth/SignOut.cs`
+
+- Endpoint `POST /v1/auth/signout` — requer autenticação
+- Input: `RefreshToken` (body)
+- Remove o refresh token do banco (soft-delete ou remoção)
+- Previne reutilização do token
+- Validação: refresh token deve pertencer ao usuário autenticado
+
+---
+
 ## Task 10: ✅ Channels — CRUD
 
 **Files:**
@@ -2417,7 +2431,7 @@ dotnet ef migrations add AddPlaylists --project src/VidroApi.Infrastructure --st
 
 **Fluxo:** Mesmo padrão do upload de vídeo — API gera uma presigned PUT URL no MinIO e o cliente faz o upload diretamente. Não há webhook; a thumbnail fica disponível imediatamente após o upload.
 
-**Caminho no MinIO:** `thumbnails/{videoId}/custom` (separado das thumbs automáticas em `thumbnails/{videoId}/thumb{n}.jpg`).
+**Caminho no MinIO:** `thumbnails/{videoId}/custom.jpg` (separado das thumbs automáticas em `thumbnails/{videoId}/thumb{n}.jpg`).
 
 **Entities:**
 - `VideoArtifacts` — adicionar campo `CustomThumbnailPath` (`string?`, nullable até o dono fazer upload).
@@ -2438,7 +2452,7 @@ dotnet ef migrations add AddPlaylists --project src/VidroApi.Infrastructure --st
 - Vídeo precisa existir e o usuário ser o dono → 403/404 conforme padrão de visibilidade.
 - Não exige que o vídeo seja `Ready` — dono pode fazer upload de thumbnail em qualquer status.
 - Retorna `uploadUrl` e `expiresAt`, igual ao `CreateVideo`.
-- O campo `CustomThumbnailPath` em `VideoArtifacts` é preenchido na própria resposta (já sabemos o path antes do upload completar, pois é determinístico: `thumbnails/{videoId}/custom`).
+- O campo `CustomThumbnailPath` em `VideoArtifacts` é preenchido na própria resposta (já sabemos o path antes do upload completar, pois é determinístico: `thumbnails/{videoId}/custom.jpg`).
 
 ---
 
@@ -2468,6 +2482,44 @@ dotnet ef migrations add AddPlaylists --project src/VidroApi.Infrastructure --st
 - Retorna `uploadUrl` e `expiresAt`.
 - Path é determinístico (`avatars/{userId}`), então `AvatarPath` pode ser gravado no banco imediatamente, antes mesmo do upload completar.
 - Upload substitui o avatar anterior (sem deletar o objeto anterior no MinIO — o path é fixo, o novo upload sobrescreve).
+
+---
+
+## Task 21.1: ✅ Channels — Foto de Perfil
+
+**Descrição:** Canais podem ter uma foto de perfil (avatar). Mesmo padrão de presigned URL que usuários.
+
+**Caminho no MinIO:** `avatars/channels/{channelId}`.
+
+**Entities:**
+- `Channel` — adicionar campo `AvatarPath` (`string?`), método `SetAvatar(string path)`.
+
+**Files:**
+- Update: `src/VidroApi.Domain/Entities/Channel.cs` (campo `AvatarPath`, método `SetAvatar`)
+- Create: `src/VidroApi.Api/Features/Channels/UploadChannelAvatar.cs`
+- Update: `src/VidroApi.Api/Features/Channels/GetChannel.cs` (retornar `AvatarUrl` presigned)
+- Update: `src/VidroApi.Api/Features/Channels/ListMyChannels.cs` (retornar `AvatarUrl` presigned)
+- Create: `tests/VidroApi.IntegrationTests/Channels/UploadChannelAvatarTests.cs`
+- Migration para adicionar `avatar_path` em `channels`
+
+**Endpoints:**
+
+| Method | Route | Auth | Descrição |
+|--------|-------|------|-----------|
+| POST | `/v1/channels/{channelId}/avatar` | ✅ dono | Gera presigned URL para upload de avatar do canal |
+
+**Regras de negócio:**
+- Apenas o dono do canal pode fazer upload → 403 se não for dono.
+- Retorna `uploadUrl` e `expiresAt`.
+- Path é determinístico (`avatars/channels/{channelId}`), então `AvatarPath` pode ser gravado no banco imediatamente.
+- `GetChannel` retorna `avatarUrl` (presigned, TTL: 1h) ou `null` se não houver avatar.
+- `ListMyChannels` também retorna `avatarUrl` para cada canal.
+- **Integração com vídeos:** todos os endpoints de listagem/obtenção de vídeo retornam `channelAvatarUrl` (presigned):
+  - `GetVideo` — retorna `channelAvatarUrl` do canal do vídeo
+  - `ListChannelVideos` — retorna `channelAvatarUrl` para cada vídeo
+  - `ListFeedVideos` — retorna `channelAvatarUrl` para cada vídeo
+  - `ListTrendingVideos` — retorna `channelAvatarUrl` para cada vídeo
+  - `SearchVideos` — retorna `channelAvatarUrl` para cada vídeo
 
 ---
 
@@ -2503,6 +2555,7 @@ UpdateChannel.MapEndpoint(app);
 DeleteChannel.MapEndpoint(app);
 FollowChannel.MapEndpoint(app);
 UnfollowChannel.MapEndpoint(app);
+UploadChannelAvatar.MapEndpoint(app);
 
 // Videos
 CreateVideo.MapEndpoint(app);
@@ -2546,8 +2599,146 @@ ReorderPlaylistItems.MapEndpoint(app);
 3. Task 10–11 (Channels) — necessário para criar vídeos
 4. Tasks 12–15 (Videos) — core da plataforma
 5. Task 20 (UploadVideoThumbnail) — depende de vídeo pronto
-6. Task 21 (Foto de perfil) — independente, pode ser feito a qualquer momento
+6. Task 21 (Foto de perfil de usuário) e Task 21.1 (Avatar de canal) — independentes, podem ser feitos a qualquer momento
 7. Task 22 (ViewCount) — ✅ implementado
 8. Tasks 16–17 (Reactions + Comments) — features sociais
 9. Task 19 (Playlists) — depende de vídeos estar pronto
 10. Task 18 (Integration Tests) — validação end-to-end
+
+---
+
+## Task 23: ✅ Users — GetCurrentUser
+
+**Descrição:** Implementar endpoint para retorno dos dados do usuário autenticado.
+
+**Implementado em:** `src/VidroApi.Api/Features/Users/GetCurrentUser.cs`
+
+- Endpoint `GET /v1/users/me` — requer autenticação
+- Retorna dados completos do usuário: `UserId`, `Username`, `Email`, `AvatarUrl`
+- Gera URL presignada para avatar com TTL via MinIO
+
+---
+
+## Task 24: ✅ Channels — ListUserChannels
+
+**Descrição:** Listar todos os canais de um usuário específico.
+
+**Implementado em:** `src/VidroApi.Api/Features/Channels/ListUserChannels.cs`
+
+- Endpoint `GET /v1/users/{userId:guid}/channels` — sem autenticação obrigatória
+- Retorna lista de canais com `ChannelSummary`: id, nome, descrição, contagem de seguidores, avatar URL
+- Gera URLs presignadas para avatars dos canais com TTL via MinIO
+- Validação: retorna erro 404 se o usuário não existe
+
+---
+
+## Task 25: ✅ Videos — SearchVideos
+
+**Descrição:** Implementar busca de vídeos por query (título, descrição, tags).
+
+**Implementado em:** `src/VidroApi.Api/Features/Videos/SearchVideos.cs`
+
+- Endpoint `POST /v1/videos/search` — sem autenticação obrigatória
+- Entrada: `Query` (string obrigatória), `Cursor` (paginação), `Limit`
+- Retorna lista de `VideoSummary`: id, canal, título, tags, contadores, múltiplas thumbnails, data de criação
+- Paginação cursor-based com `NextCursor`
+- Validação: query entre `SearchSettings:MinQueryLength` e `SearchSettings:MaxQueryLength`
+
+---
+
+## Task 26: ✅ Channels — Melhorias em GetChannel
+
+**Descrição:** Adicionar dados do dono do canal no endpoint `GET /v1/channels/{channelId}`.
+
+**Implementado em:** `src/VidroApi.Api/Features/Channels/GetChannel.cs`
+
+- Campos adicionais na `Response`:
+  - `OwnerId` — ID do usuário dono do canal
+  - `OwnerUsername` — username do dono
+  - `OwnerAvatarUrl` — URL presignada do avatar do dono (gerada via MinIO)
+- Melhora UX ao permitir UI mostrar dados do dono sem chamadas adicionais
+
+---
+
+## Task 27: ✅ Videos — Suporte a Múltiplas Thumbnails
+
+**Descrição:** Retornar múltiplas thumbnails nos endpoints de listagem e busca de vídeos.
+
+**Implementado em:** Endpoints `ListChannelVideos`, `ListFeedVideos`, `ListTrendingVideos`, `SearchVideos`, `GetVideo`
+
+- Cada `VideoSummary` agora inclui `List<string> ThumbnailUrls`
+- Geradas a partir de `VideoMetadata.ThumbnailPaths`
+- URLs presignadas com TTL via MinIO
+- Permite UI exibir múltiplos frames do vídeo como preview
+
+---
+
+## Task 28: ✅ Comments — Melhorias na Feature de Comentários
+
+**Descrição:** Funcionalidades adicionais para comentários.
+
+**Implementado em:**
+- `src/VidroApi.Api/Features/Comments/EditComment.cs` — editar comentário existente
+- `src/VidroApi.Api/Features/Comments/ListReplies.cs` — listar respostas de um comentário
+- `src/VidroApi.Api/Features/Comments/ReactToComment.cs` — adicionar reação em comentário
+- `src/VidroApi.Api/Features/Comments/RemoveCommentReaction.cs` — remover reação de comentário
+
+**Endpoints adicionados:**
+- `PATCH /v1/comments/{commentId}` — editar comentário (apenas autor)
+- `GET /v1/comments/{commentId}/replies` — listar respostas com paginação cursor-based
+- `POST /v1/comments/{commentId}/reactions` — adicionar/alterar reação
+- `DELETE /v1/comments/{commentId}/reactions/{reactionType}` — remover reação
+
+---
+
+## Resumo dos Endpoints (Atualizado)
+
+Todos os endpoints implementados até agora:
+
+```csharp
+// Auth
+SignUp.MapEndpoint(app);
+SignIn.MapEndpoint(app);
+RenewToken.MapEndpoint(app);
+SignOut.MapEndpoint(app);
+
+// Channels
+CreateChannel.MapEndpoint(app);
+GetChannel.MapEndpoint(app);
+UpdateChannel.MapEndpoint(app);
+DeleteChannel.MapEndpoint(app);
+ListUserChannels.MapEndpoint(app);
+FollowChannel.MapEndpoint(app);
+UnfollowChannel.MapEndpoint(app);
+UploadChannelAvatar.MapEndpoint(app);
+
+// Videos
+CreateVideo.MapEndpoint(app);
+MinioUploadCompleted.MapEndpoint(app);
+ListChannelVideos.MapEndpoint(app);
+GetVideo.MapEndpoint(app);
+DeleteVideo.MapEndpoint(app);
+ListFeedVideos.MapEndpoint(app);
+ListTrendingVideos.MapEndpoint(app);
+SearchVideos.MapEndpoint(app);
+VideoProcessed.MapEndpoint(app);
+UploadVideoThumbnail.MapEndpoint(app);
+RegisterVideoView.MapEndpoint(app);
+
+// Users
+GetCurrentUser.MapEndpoint(app);
+UploadAvatar.MapEndpoint(app);
+
+// Reactions (Videos)
+ReactToVideo.MapEndpoint(app);
+RemoveReaction.MapEndpoint(app);
+
+// Comments
+AddComment.MapEndpoint(app);
+EditComment.MapEndpoint(app);
+ListComments.MapEndpoint(app);
+ListReplies.MapEndpoint(app);
+DeleteComment.MapEndpoint(app);
+ReactToComment.MapEndpoint(app);
+RemoveCommentReaction.MapEndpoint(app);
+```

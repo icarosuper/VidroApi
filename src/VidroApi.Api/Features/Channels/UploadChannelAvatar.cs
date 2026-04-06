@@ -5,19 +5,18 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using VidroApi.Api.Extensions;
 using VidroApi.Application.Abstractions;
-using VidroApi.Domain.Enums;
 using VidroApi.Domain.Errors;
 using VidroApi.Domain.Errors.EntityErrors;
 using VidroApi.Infrastructure.Persistence;
 using VidroApi.Infrastructure.Settings;
 
-namespace VidroApi.Api.Features.Videos;
+namespace VidroApi.Api.Features.Channels;
 
-public static class UploadVideoThumbnail
+public static class UploadChannelAvatar
 {
     public record Command : IRequest<Result<Response, Error>>
     {
-        public Guid VideoId { get; init; }
+        public Guid ChannelId { get; init; }
         public Guid UserId { get; init; }
     }
 
@@ -28,13 +27,13 @@ public static class UploadVideoThumbnail
     }
 
     public static void MapEndpoint(IEndpointRouteBuilder app) =>
-        app.MapPost("/v1/videos/{videoId:guid}/thumbnail", async (
-            Guid videoId,
+        app.MapPost("/v1/channels/{channelId:guid}/avatar", async (
+            Guid channelId,
             ClaimsPrincipal user,
             IMediator mediator,
             CancellationToken ct) =>
         {
-            var cmd = new Command { VideoId = videoId, UserId = user.GetUserId() };
+            var cmd = new Command { ChannelId = channelId, UserId = user.GetUserId() };
             var result = await mediator.Send(cmd, ct);
             return result.ToApiResult(StatusCodes.Status200OK);
         })
@@ -49,49 +48,30 @@ public static class UploadVideoThumbnail
     {
         public async ValueTask<Result<Response, Error>> Handle(Command cmd, CancellationToken ct)
         {
-            var video = await FetchVideo(cmd.VideoId, ct);
+            var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == cmd.ChannelId, ct);
 
-            if (video is null)
-                return CommonErrors.NotFound(nameof(Domain.Entities.Video), cmd.VideoId);
+            if (channel is null)
+                return CommonErrors.NotFound(nameof(Domain.Entities.Channel), cmd.ChannelId);
 
-            var isOwner = video.Channel.UserId == cmd.UserId;
+            var isOwner = channel.UserId == cmd.UserId;
             if (!isOwner)
-            {
-                return video.Visibility == VideoVisibility.Private
-                    ? CommonErrors.NotFound(nameof(Domain.Entities.Video), cmd.VideoId)
-                    : Errors.Video.NotOwner();
-            }
+                return Errors.Channel.NotOwner();
 
-            var objectKey = $"thumbnails/{cmd.VideoId}/custom.jpg";
+            var objectKey = $"avatars/channels/{cmd.ChannelId}";
             var ttlHours = minioOptions.Value.UploadUrlTtlHours;
             var ttl = TimeSpan.FromHours(ttlHours);
             var uploadExpiresAt = clock.UtcNow.AddHours(ttlHours);
 
             var (uploadUrl, _) = await minio.GenerateUploadUrlAsync(objectKey, ttl, ct);
 
-            if (video.Artifacts is not null)
-                await SetCustomThumbnailPath(cmd.VideoId, objectKey, ct);
+            channel.SetAvatar(objectKey, clock.UtcNow);
+            await db.SaveChangesAsync(ct);
 
             return new Response
             {
                 UploadUrl = uploadUrl,
                 UploadExpiresAt = uploadExpiresAt
             };
-        }
-
-        private Task<Domain.Entities.Video?> FetchVideo(Guid videoId, CancellationToken ct)
-        {
-            return db.Videos
-                .Include(v => v.Channel)
-                .Include(v => v.Artifacts)
-                .FirstOrDefaultAsync(v => v.Id == videoId, ct);
-        }
-
-        private Task<int> SetCustomThumbnailPath(Guid videoId, string path, CancellationToken ct)
-        {
-            return db.VideoArtifacts
-                .Where(a => a.VideoId == videoId)
-                .ExecuteUpdateAsync(s => s.SetProperty(a => a.CustomThumbnailPath, path), ct);
         }
     }
 }

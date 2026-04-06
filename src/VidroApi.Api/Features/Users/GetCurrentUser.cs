@@ -1,45 +1,42 @@
+using System.Security.Claims;
 using CSharpFunctionalExtensions;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using VidroApi.Api.Extensions;
 using VidroApi.Application.Abstractions;
-using VidroApi.Domain.Entities;
 using VidroApi.Domain.Errors;
 using VidroApi.Infrastructure.Persistence;
 using VidroApi.Infrastructure.Settings;
 
-namespace VidroApi.Api.Features.Channels;
+namespace VidroApi.Api.Features.Users;
 
-public static class GetChannel
+public static class GetCurrentUser
 {
     public record Command : IRequest<Result<Response, Error>>
     {
-        public Guid ChannelId { get; init; }
+        public Guid UserId { get; init; }
     }
 
     public record Response
     {
-        public Guid ChannelId { get; init; }
-        public string Name { get; init; } = null!;
-        public string? Description { get; init; }
-        public int FollowerCount { get; init; }
-        public Guid OwnerId { get; init; }
-        public string OwnerUsername { get; init; } = null!;
+        public Guid UserId { get; init; }
+        public string Username { get; init; } = null!;
+        public string Email { get; init; } = null!;
         public string? AvatarUrl { get; init; }
-        public string? OwnerAvatarUrl { get; init; }
     }
 
     public static void MapEndpoint(IEndpointRouteBuilder app) =>
-        app.MapGet("/v1/channels/{channelId:guid}", async (
-            Guid channelId,
+        app.MapGet("/v1/users/me", async (
+            ClaimsPrincipal user,
             IMediator mediator,
             CancellationToken ct) =>
         {
-            var cmd = new Command { ChannelId = channelId };
+            var cmd = new Command { UserId = user.GetUserId() };
             var result = await mediator.Send(cmd, ct);
             return result.ToApiResult(StatusCodes.Status200OK);
-        });
+        })
+        .RequireAuthorization();
 
     public class Handler(
         AppDbContext db,
@@ -51,26 +48,19 @@ public static class GetChannel
 
         public async ValueTask<Result<Response, Error>> Handle(Command cmd, CancellationToken ct)
         {
-            var channel = await db.Channels
-                .Include(c => c.User)
-                .FirstOrDefaultAsync(c => c.Id == cmd.ChannelId, ct);
+            var currentUser = await db.Users.FirstOrDefaultAsync(u => u.Id == cmd.UserId, ct);
 
-            if (channel is null)
-                return CommonErrors.NotFound(nameof(Channel), cmd.ChannelId);
+            if (currentUser is null)
+                return CommonErrors.NotFound(nameof(Domain.Entities.User), cmd.UserId);
 
-            var avatarUrl = await GenerateAvatarUrl(channel.AvatarPath);
-            var ownerAvatarUrl = await GenerateAvatarUrl(channel.User.AvatarPath);
+            var avatarUrl = await GenerateAvatarUrl(currentUser.AvatarPath);
 
             return new Response
             {
-                ChannelId = channel.Id,
-                Name = channel.Name,
-                Description = channel.Description,
-                FollowerCount = channel.FollowerCount,
-                OwnerId = channel.UserId,
-                OwnerUsername = channel.User.Username,
-                AvatarUrl = avatarUrl,
-                OwnerAvatarUrl = ownerAvatarUrl
+                UserId = currentUser.Id,
+                Username = currentUser.Username,
+                Email = currentUser.Email,
+                AvatarUrl = avatarUrl
             };
         }
 
