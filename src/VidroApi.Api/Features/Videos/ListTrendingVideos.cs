@@ -14,7 +14,6 @@ namespace VidroApi.Api.Features.Videos;
 
 public static class ListTrendingVideos
 {
-    private static readonly TimeSpan ThumbnailUrlTtl = TimeSpan.FromHours(1);
 
     public record Command : IRequest<Result<Response, Error>>
     {
@@ -62,10 +61,11 @@ public static class ListTrendingVideos
             return result.ToApiResult(StatusCodes.Status200OK);
         });
 
-    public class Handler(AppDbContext db, IMinioService minio, IDateTimeProvider clock, IOptions<TrendingSettings> trendingOptions)
+    public class Handler(AppDbContext db, IMinioService minio, IDateTimeProvider clock, IOptions<TrendingSettings> trendingOptions, IOptions<MinioSettings> minioOptions)
         : IRequestHandler<Command, Result<Response, Error>>
     {
         private readonly TrendingSettings _trending = trendingOptions.Value;
+        private readonly TimeSpan _thumbnailUrlTtl = TimeSpan.FromHours(minioOptions.Value.ThumbnailUrlTtlHours);
 
         public async ValueTask<Result<Response, Error>> Handle(Command cmd, CancellationToken ct)
         {
@@ -73,8 +73,8 @@ public static class ListTrendingVideos
             var videos = await FetchTrendingVideos(windowStart, cmd.Limit, ct);
 
             var thumbnailUrlLists = await GetThumbnails(videos);
-            var avatarUrls = await GetChannelAvatarUrls(videos);
-            var summaries = GetSummaries(videos, thumbnailUrlLists, avatarUrls);
+            var avatarUrlByChannel = await GetChannelAvatarUrls(videos);
+            var summaries = GetSummaries(videos, thumbnailUrlLists, avatarUrlByChannel);
 
             return new Response
             {
@@ -88,9 +88,12 @@ public static class ListTrendingVideos
             return thumbs.ToList();
         }
 
-        private static List<Response.VideoSummary> GetSummaries(List<Domain.Entities.Video> videos, List<List<string>> thumbnailUrlLists, List<string?> avatarUrls)
+        private static List<Response.VideoSummary> GetSummaries(
+            List<Domain.Entities.Video> videos,
+            List<List<string>> thumbnailUrlLists,
+            Dictionary<Guid, string?> avatarUrlByChannel)
         {
-            return videos.Select((v, i) => MapToSummary(v, thumbnailUrlLists[i], avatarUrls[i])).ToList();
+            return videos.Select((v, i) => MapToSummary(v, thumbnailUrlLists[i], avatarUrlByChannel[v.ChannelId])).ToList();
         }
 
         private static Response.VideoSummary MapToSummary(Domain.Entities.Video video, List<string> thumbnailUrls, string? avatarUrl)
@@ -145,22 +148,26 @@ public static class ListTrendingVideos
                 paths.Add(video.Artifacts.CustomThumbnailPath);
             paths.AddRange(video.Artifacts.ThumbnailPaths);
 
-            var urls = await Task.WhenAll(paths.Select(p => minio.GenerateDownloadUrlAsync(p, ThumbnailUrlTtl)));
+            var urls = await Task.WhenAll(paths.Select(p => minio.GenerateDownloadUrlAsync(p, _thumbnailUrlTtl)));
             return [..urls];
         }
 
-        private async Task<List<string?>> GetChannelAvatarUrls(List<Domain.Entities.Video> videos)
+        private async Task<Dictionary<Guid, string?>> GetChannelAvatarUrls(List<Domain.Entities.Video> videos)
         {
-            var urls = await Task.WhenAll(videos.Select(GenerateChannelAvatarUrl));
-            return urls.ToList();
-        }
+            var distinctChannels = videos
+                .Select(v => v.Channel)
+                .DistinctBy(c => c.Id)
+                .ToList();
 
-        private async Task<string?> GenerateChannelAvatarUrl(Domain.Entities.Video video)
-        {
-            if (video.Channel.AvatarPath is null)
-                return null;
+            var entries = await Task.WhenAll(distinctChannels.Select(async c =>
+            {
+                var url = c.AvatarPath is null
+                    ? null
+                    : await minio.GenerateDownloadUrlAsync(c.AvatarPath, _thumbnailUrlTtl);
+                return (c.Id, url);
+            }));
 
-            return await minio.GenerateDownloadUrlAsync(video.Channel.AvatarPath, ThumbnailUrlTtl);
+            return entries.ToDictionary(e => e.Id, e => e.url);
         }
     }
 }

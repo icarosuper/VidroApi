@@ -64,7 +64,9 @@ public static class ListChannelVideos
             int limit,
             CancellationToken ct = default) =>
         {
-            Guid? requestingUserId = user.Identity?.IsAuthenticated == true ? user.GetUserId() : null;
+            Guid? requestingUserId = user.Identity?.IsAuthenticated == true
+                ? user.GetUserId()
+                : null;
             var cmd = new Command
             {
                 ChannelId = channelId,

@@ -45,10 +45,11 @@ public class Channel : BaseAuditableEntity
         SetUpdatedAt(now);
     }
 
-    public void SetAvatar(string path)
+    public void SetAvatar(string path, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         AvatarPath = path;
+        SetUpdatedAt(now);
     }
 
     // Navigation properties

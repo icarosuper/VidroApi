@@ -77,9 +77,9 @@ public static class SearchVideos
         {
             var videos = await FetchMatchingVideos(cmd.Query, cmd.Cursor, cmd.Limit, ct);
 
-            var thumbnailUrlLists = await Task.WhenAll(videos.Select(GenerateThumbnailUrls));
-            var avatarUrls = await GetChannelAvatarUrls(videos);
-            var summaries = videos.Select((v, i) => MapToSummary(v, thumbnailUrlLists[i], avatarUrls[i])).ToList();
+            var thumbnailUrlLists = await GetThumbnails(videos);
+            var avatarUrlByChannel = await GetChannelAvatarUrls(videos);
+            var summaries = videos.Select((v, i) => MapToSummary(v, thumbnailUrlLists[i], avatarUrlByChannel[v.ChannelId])).ToList();
 
             var nextCursor = videos.Count == cmd.Limit
                 ? videos[^1].CreatedAt
@@ -143,18 +143,28 @@ public static class SearchVideos
             return [..urls];
         }
 
-        private async Task<List<string?>> GetChannelAvatarUrls(List<Domain.Entities.Video> videos)
+        private async Task<List<List<string>>> GetThumbnails(List<Domain.Entities.Video> videos)
         {
-            var urls = await Task.WhenAll(videos.Select(GenerateChannelAvatarUrl));
-            return urls.ToList();
+            var thumbs = await Task.WhenAll(videos.Select(GenerateThumbnailUrls));
+            return thumbs.ToList();
         }
 
-        private async Task<string?> GenerateChannelAvatarUrl(Domain.Entities.Video video)
+        private async Task<Dictionary<Guid, string?>> GetChannelAvatarUrls(List<Domain.Entities.Video> videos)
         {
-            if (video.Channel.AvatarPath is null)
-                return null;
+            var distinctChannels = videos
+                .Select(v => v.Channel)
+                .DistinctBy(c => c.Id)
+                .ToList();
 
-            return await minio.GenerateDownloadUrlAsync(video.Channel.AvatarPath, _thumbnailUrlTtl);
+            var entries = await Task.WhenAll(distinctChannels.Select(async c =>
+            {
+                var url = c.AvatarPath is null
+                    ? null
+                    : await minio.GenerateDownloadUrlAsync(c.AvatarPath, _thumbnailUrlTtl);
+                return (c.Id, url);
+            }));
+
+            return entries.ToDictionary(e => e.Id, e => e.url);
         }
     }
 }

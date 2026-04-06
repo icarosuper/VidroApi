@@ -64,7 +64,7 @@ public static class UploadChannelAvatar
 
             var (uploadUrl, _) = await minio.GenerateUploadUrlAsync(objectKey, ttl, ct);
 
-            channel.SetAvatar(objectKey);
+            channel.SetAvatar(objectKey, clock.UtcNow);
             await db.SaveChangesAsync(ct);
 
             return new Response
