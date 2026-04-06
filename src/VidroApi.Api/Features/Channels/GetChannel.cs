@@ -1,10 +1,13 @@
 using CSharpFunctionalExtensions;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using VidroApi.Api.Extensions;
+using VidroApi.Application.Abstractions;
 using VidroApi.Domain.Entities;
 using VidroApi.Domain.Errors;
 using VidroApi.Infrastructure.Persistence;
+using VidroApi.Infrastructure.Settings;
 
 namespace VidroApi.Api.Features.Channels;
 
@@ -22,6 +25,7 @@ public static class GetChannel
         public string? Description { get; init; }
         public int FollowerCount { get; init; }
         public string OwnerUsername { get; init; } = null!;
+        public string? AvatarUrl { get; init; }
     }
 
     public static void MapEndpoint(IEndpointRouteBuilder app) =>
@@ -35,8 +39,14 @@ public static class GetChannel
             return result.ToApiResult(StatusCodes.Status200OK);
         });
 
-    public class Handler(AppDbContext db) : IRequestHandler<Command, Result<Response, Error>>
+    public class Handler(
+        AppDbContext db,
+        IMinioService minio,
+        IOptions<MinioSettings> minioOptions)
+        : IRequestHandler<Command, Result<Response, Error>>
     {
+        private readonly TimeSpan _avatarUrlTtl = TimeSpan.FromHours(minioOptions.Value.ThumbnailUrlTtlHours);
+
         public async ValueTask<Result<Response, Error>> Handle(Command cmd, CancellationToken ct)
         {
             var channel = await db.Channels
@@ -46,14 +56,25 @@ public static class GetChannel
             if (channel is null)
                 return CommonErrors.NotFound(nameof(Channel), cmd.ChannelId);
 
+            var avatarUrl = await GenerateAvatarUrl(channel.AvatarPath);
+
             return new Response
             {
                 ChannelId = channel.Id,
                 Name = channel.Name,
                 Description = channel.Description,
                 FollowerCount = channel.FollowerCount,
-                OwnerUsername = channel.User.Username
+                OwnerUsername = channel.User.Username,
+                AvatarUrl = avatarUrl
             };
+        }
+
+        private async Task<string?> GenerateAvatarUrl(string? path)
+        {
+            if (path is null)
+                return null;
+
+            return await minio.GenerateDownloadUrlAsync(path, _avatarUrlTtl);
         }
     }
 }

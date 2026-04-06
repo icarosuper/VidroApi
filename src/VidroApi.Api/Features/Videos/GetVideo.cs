@@ -26,6 +26,7 @@ public static class GetVideo
         public Guid VideoId { get; init; }
         public Guid ChannelId { get; init; }
         public string ChannelName { get; init; } = null!;
+        public string? ChannelAvatarUrl { get; init; }
         public string Title { get; init; } = null!;
         public string? Description { get; init; }
         public List<string> Tags { get; init; } = [];
@@ -70,12 +71,14 @@ public static class GetVideo
 
             var thumbnailUrls = await GenerateThumbnailUrls(video.Artifacts);
             var videoUrl = await GenerateUrlAsync(video.Artifacts?.ProcessedPath, _videoUrlTtl);
+            var channelAvatarUrl = await GenerateUrlAsync(video.Channel.AvatarPath, _thumbnailUrlTtl);
 
             return new Response
             {
                 VideoId = video.Id,
                 ChannelId = video.ChannelId,
                 ChannelName = video.Channel.Name,
+                ChannelAvatarUrl = channelAvatarUrl,
                 Title = video.Title,
                 Description = video.Description,
                 Tags = video.Tags,

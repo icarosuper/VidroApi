@@ -30,6 +30,7 @@ public class Channel : BaseAuditableEntity
     public string Name { get; private set; } = null!;
     public string? Description { get; private set; }
     public int FollowerCount { get; private set; }
+    public string? AvatarPath { get; private set; }
 
     public void UpdateDetails(string name, string? description, DateTimeOffset now)
     {
@@ -42,6 +43,12 @@ public class Channel : BaseAuditableEntity
         Name = name;
         Description = description;
         SetUpdatedAt(now);
+    }
+
+    public void SetAvatar(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        AvatarPath = path;
     }
 
     // Navigation properties

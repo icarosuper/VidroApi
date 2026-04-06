@@ -70,6 +70,7 @@ A API valida a assinatura HMAC-SHA256 usando `WEBHOOK_SECRET` (mesma variável c
 | `preview/{videoId}_preview.mp4` | VideoProcessor | Prévia baixa qualidade |
 | `hls/{videoId}/` | VideoProcessor | Segmentos HLS + playlist |
 | `avatars/{userId}` | API (upload) | Foto de perfil do usuário |
+| `avatars/channels/{channelId}` | API (upload) | Foto de perfil do canal |
 
 ---
 
@@ -288,6 +289,7 @@ Channels
   DELETE /channels/{id}
   POST   /channels/{id}/follow
   DELETE /channels/{id}/follow
+  POST   /channels/{id}/avatar         Presigned PUT URL para foto de perfil do canal
   GET    /channels/{id}/videos        cursor-based
 
 Videos

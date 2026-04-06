@@ -50,6 +50,7 @@ public static class ListChannelVideos
             public int ViewCount { get; init; }
             public int LikeCount { get; init; }
             public List<string> ThumbnailUrls { get; init; } = [];
+            public string? ChannelAvatarUrl { get; init; }
             public DateTimeOffset CreatedAt { get; init; }
         }
     }
@@ -90,7 +91,8 @@ public static class ListChannelVideos
             var videos = await FetchChannelVideos(cmd.ChannelId, isOwner, cmd.Cursor, cmd.Limit, ct);
 
             var thumbnailUrlLists = await GetThumbnails(videos);
-            var summaries = videos.Select((v, i) => MapToSummary(v, thumbnailUrlLists[i])).ToList();
+            var channelAvatarUrl = await GenerateAvatarUrl(channel.AvatarPath);
+            var summaries = videos.Select((v, i) => MapToSummary(v, thumbnailUrlLists[i], channelAvatarUrl)).ToList();
 
             var nextCursor = videos.Count == cmd.Limit
                 ? videos[^1].CreatedAt
@@ -103,7 +105,7 @@ public static class ListChannelVideos
             };
         }
 
-        private static Response.VideoSummary MapToSummary(Domain.Entities.Video video, List<string> thumbnailUrls)
+        private static Response.VideoSummary MapToSummary(Domain.Entities.Video video, List<string> thumbnailUrls, string? channelAvatarUrl)
         {
             return new Response.VideoSummary
             {
@@ -116,6 +118,7 @@ public static class ListChannelVideos
                 ViewCount = video.ViewCount,
                 LikeCount = video.LikeCount,
                 ThumbnailUrls = thumbnailUrls,
+                ChannelAvatarUrl = channelAvatarUrl,
                 CreatedAt = video.CreatedAt
             };
         }
@@ -145,6 +148,14 @@ public static class ListChannelVideos
         {
             var thumbs = await Task.WhenAll(videos.Select(GenerateThumbnailUrls));
             return thumbs.ToList();
+        }
+
+        private async Task<string?> GenerateAvatarUrl(string? path)
+        {
+            if (path is null)
+                return null;
+
+            return await minio.GenerateDownloadUrlAsync(path, _thumbnailUrlTtl);
         }
 
         private async Task<List<string>> GenerateThumbnailUrls(Domain.Entities.Video video)

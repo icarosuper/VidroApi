@@ -38,6 +38,7 @@ public static class ListTrendingVideos
             public Guid VideoId { get; init; }
             public Guid ChannelId { get; init; }
             public string ChannelName { get; init; } = null!;
+            public string? ChannelAvatarUrl { get; init; }
             public string Title { get; init; } = null!;
             public string? Description { get; init; }
             public List<string> Tags { get; init; } = [];
@@ -72,7 +73,8 @@ public static class ListTrendingVideos
             var videos = await FetchTrendingVideos(windowStart, cmd.Limit, ct);
 
             var thumbnailUrlLists = await GetThumbnails(videos);
-            var summaries = GetSummaries(videos, thumbnailUrlLists);
+            var avatarUrls = await GetChannelAvatarUrls(videos);
+            var summaries = GetSummaries(videos, thumbnailUrlLists, avatarUrls);
 
             return new Response
             {
@@ -86,18 +88,19 @@ public static class ListTrendingVideos
             return thumbs.ToList();
         }
 
-        private static List<Response.VideoSummary> GetSummaries(List<Domain.Entities.Video> videos, List<List<string>> thumbnailUrlLists)
+        private static List<Response.VideoSummary> GetSummaries(List<Domain.Entities.Video> videos, List<List<string>> thumbnailUrlLists, List<string?> avatarUrls)
         {
-            return videos.Select((v, i) => MapToSummary(v, thumbnailUrlLists[i])).ToList();
+            return videos.Select((v, i) => MapToSummary(v, thumbnailUrlLists[i], avatarUrls[i])).ToList();
         }
 
-        private static Response.VideoSummary MapToSummary(Domain.Entities.Video video, List<string> thumbnailUrls)
+        private static Response.VideoSummary MapToSummary(Domain.Entities.Video video, List<string> thumbnailUrls, string? avatarUrl)
         {
             return new Response.VideoSummary
             {
                 VideoId = video.Id,
                 ChannelId = video.ChannelId,
                 ChannelName = video.Channel.Name,
+                ChannelAvatarUrl = avatarUrl,
                 Title = video.Title,
                 Description = video.Description,
                 Tags = video.Tags,
@@ -144,6 +147,20 @@ public static class ListTrendingVideos
 
             var urls = await Task.WhenAll(paths.Select(p => minio.GenerateDownloadUrlAsync(p, ThumbnailUrlTtl)));
             return [..urls];
+        }
+
+        private async Task<List<string?>> GetChannelAvatarUrls(List<Domain.Entities.Video> videos)
+        {
+            var urls = await Task.WhenAll(videos.Select(GenerateChannelAvatarUrl));
+            return urls.ToList();
+        }
+
+        private async Task<string?> GenerateChannelAvatarUrl(Domain.Entities.Video video)
+        {
+            if (video.Channel.AvatarPath is null)
+                return null;
+
+            return await minio.GenerateDownloadUrlAsync(video.Channel.AvatarPath, ThumbnailUrlTtl);
         }
     }
 }

@@ -2471,6 +2471,44 @@ dotnet ef migrations add AddPlaylists --project src/VidroApi.Infrastructure --st
 
 ---
 
+## Task 21.1: ✅ Channels — Foto de Perfil
+
+**Descrição:** Canais podem ter uma foto de perfil (avatar). Mesmo padrão de presigned URL que usuários.
+
+**Caminho no MinIO:** `avatars/channels/{channelId}`.
+
+**Entities:**
+- `Channel` — adicionar campo `AvatarPath` (`string?`), método `SetAvatar(string path)`.
+
+**Files:**
+- Update: `src/VidroApi.Domain/Entities/Channel.cs` (campo `AvatarPath`, método `SetAvatar`)
+- Create: `src/VidroApi.Api/Features/Channels/UploadChannelAvatar.cs`
+- Update: `src/VidroApi.Api/Features/Channels/GetChannel.cs` (retornar `AvatarUrl` presigned)
+- Update: `src/VidroApi.Api/Features/Channels/ListMyChannels.cs` (retornar `AvatarUrl` presigned)
+- Create: `tests/VidroApi.IntegrationTests/Channels/UploadChannelAvatarTests.cs`
+- Migration para adicionar `avatar_path` em `channels`
+
+**Endpoints:**
+
+| Method | Route | Auth | Descrição |
+|--------|-------|------|-----------|
+| POST | `/v1/channels/{channelId}/avatar` | ✅ dono | Gera presigned URL para upload de avatar do canal |
+
+**Regras de negócio:**
+- Apenas o dono do canal pode fazer upload → 403 se não for dono.
+- Retorna `uploadUrl` e `expiresAt`.
+- Path é determinístico (`avatars/channels/{channelId}`), então `AvatarPath` pode ser gravado no banco imediatamente.
+- `GetChannel` retorna `avatarUrl` (presigned, TTL: 1h) ou `null` se não houver avatar.
+- `ListMyChannels` também retorna `avatarUrl` para cada canal.
+- **Integração com vídeos:** todos os endpoints de listagem/obtenção de vídeo retornam `channelAvatarUrl` (presigned):
+  - `GetVideo` — retorna `channelAvatarUrl` do canal do vídeo
+  - `ListChannelVideos` — retorna `channelAvatarUrl` para cada vídeo
+  - `ListFeedVideos` — retorna `channelAvatarUrl` para cada vídeo
+  - `ListTrendingVideos` — retorna `channelAvatarUrl` para cada vídeo
+  - `SearchVideos` — retorna `channelAvatarUrl` para cada vídeo
+
+---
+
 ## Task 22: Videos — Contagem de Visualizações ✅
 
 **Descrição:** Definir e implementar como `ViewCount` é incrementado.
@@ -2503,6 +2541,7 @@ UpdateChannel.MapEndpoint(app);
 DeleteChannel.MapEndpoint(app);
 FollowChannel.MapEndpoint(app);
 UnfollowChannel.MapEndpoint(app);
+UploadChannelAvatar.MapEndpoint(app);
 
 // Videos
 CreateVideo.MapEndpoint(app);
@@ -2546,7 +2585,7 @@ ReorderPlaylistItems.MapEndpoint(app);
 3. Task 10–11 (Channels) — necessário para criar vídeos
 4. Tasks 12–15 (Videos) — core da plataforma
 5. Task 20 (UploadVideoThumbnail) — depende de vídeo pronto
-6. Task 21 (Foto de perfil) — independente, pode ser feito a qualquer momento
+6. Task 21 (Foto de perfil de usuário) e Task 21.1 (Avatar de canal) — independentes, podem ser feitos a qualquer momento
 7. Task 22 (ViewCount) — ✅ implementado
 8. Tasks 16–17 (Reactions + Comments) — features sociais
 9. Task 19 (Playlists) — depende de vídeos estar pronto
