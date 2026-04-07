@@ -16,6 +16,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Comment> Comments => Set<Comment>();
     public DbSet<CommentReaction> CommentReactions => Set<CommentReaction>();
     public DbSet<PendingStorageCleanup> PendingStorageCleanups => Set<PendingStorageCleanup>();
+    public DbSet<Playlist> Playlists => Set<Playlist>();
+    public DbSet<PlaylistItem> PlaylistItems => Set<PlaylistItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

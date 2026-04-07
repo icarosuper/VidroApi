@@ -101,8 +101,16 @@ public static class DeleteChannel
             await db.Reactions.Where(r => videoIds.Contains(r.VideoId)).ExecuteDeleteAsync(ct);
             await db.VideoArtifacts.Where(a => videoIds.Contains(a.VideoId)).ExecuteDeleteAsync(ct);
             await db.VideoMetadata.Where(m => videoIds.Contains(m.VideoId)).ExecuteDeleteAsync(ct);
+            await RemoveChannelPlaylistData(channelId, ct);
             await db.Videos.Where(v => v.ChannelId == channelId).ExecuteDeleteAsync(ct);
             await db.ChannelFollowers.Where(cf => cf.ChannelId == channelId).ExecuteDeleteAsync(ct);
+        }
+
+        private async Task RemoveChannelPlaylistData(Guid channelId, CancellationToken ct)
+        {
+            var channelPlaylistIds = db.Playlists.Where(p => p.ChannelId == channelId).Select(p => p.Id);
+            await db.PlaylistItems.Where(pi => channelPlaylistIds.Contains(pi.PlaylistId)).ExecuteDeleteAsync(ct);
+            await db.Playlists.Where(p => p.ChannelId == channelId).ExecuteDeleteAsync(ct);
         }
     }
 }

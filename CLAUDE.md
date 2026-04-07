@@ -267,6 +267,7 @@ DIY JWT — no ASP.NET Core Identity. `TokenService` (Infrastructure) generates 
 ## Design decisions
 
 - **Counters are denormalized** — `LikeCount`, `DislikeCount`, `ViewCount` on `Videos` and `FollowerCount` on `Channels` are updated atomically via `ExecuteUpdateAsync`. Never use `COUNT(*)` for these.
+- **`VideoCount` on playlists is a historical counter** — it is incremented when a video is added and decremented when explicitly removed by the user, but **never decremented when a video is deleted**. This is intentional (same behavior as YouTube). `DeleteBehavior.SetNull` on `PlaylistItem.VideoId` handles the FK automatically; `GetPlaylist` filters out items with `VideoId = NULL` in the response.
 - **Cursor-based pagination everywhere** — use `CreatedAt` as cursor, never `OFFSET`.
 - **Declare composite indexes for every common query pattern** — whenever a query filters by two or more columns together (e.g. `WHERE video_id = ? AND parent_comment_id IS NULL`, `WHERE status = ? AND visibility = ?`), add a composite `HasIndex` in the entity's `IEntityTypeConfiguration`. EF Core auto-creates single-column FK indexes, but never composite ones. Add the index in the configuration file alongside the rest of the mapping, not in a migration.
 - **Videos belong to Channels, not Users** — `Video.ChannelId → Channel.UserId`. A user can own multiple channels.
