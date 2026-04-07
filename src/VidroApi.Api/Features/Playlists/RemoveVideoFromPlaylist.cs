@@ -49,7 +49,9 @@ public static class RemoveVideoFromPlaylist
 
             var userIsNotOwner = playlist.UserId != cmd.UserId;
             if (userIsNotOwner)
-                return Errors.Playlist.NotOwner();
+                return playlist.IsPrivate
+                    ? CommonErrors.NotFound(nameof(Playlist), cmd.PlaylistId)
+                    : Errors.Playlist.NotOwner();
 
             await using var tx = await db.Database.BeginTransactionAsync(ct);
 

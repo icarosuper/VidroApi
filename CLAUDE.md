@@ -102,6 +102,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 All code must be in English: class names, method names, variables, test names, log messages, comments, and XML docs. The only exception is commit messages, which are written in Portuguese.
 
+## Git commits
+
+**NEVER commit code without explicit user request.** Always:
+1. Implement the changes
+2. Run tests to verify they pass
+3. Show the user the changes and suggest a commit message
+4. Wait for the user to approve or request the commit
+
+The user will decide when and how to commit.
+
 ## Working style
 
 After each implementation step:

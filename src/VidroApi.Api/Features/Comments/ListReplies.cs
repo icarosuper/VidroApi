@@ -1,9 +1,12 @@
+using System.Security.Claims;
 using CSharpFunctionalExtensions;
 using FluentValidation;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using VidroApi.Api.Extensions;
+using VidroApi.Domain.Entities;
+using VidroApi.Domain.Enums;
 using VidroApi.Domain.Errors;
 using VidroApi.Domain.Errors.EntityErrors;
 using VidroApi.Infrastructure.Persistence;
@@ -16,6 +19,7 @@ public static class ListReplies
     public record Command : IRequest<Result<Response, Error>>
     {
         public Guid CommentId { get; init; }
+        public Guid? RequestingUserId { get; init; }
         public int Limit { get; init; }
         public DateTimeOffset? Cursor { get; init; }
     }
@@ -52,12 +56,16 @@ public static class ListReplies
     public static void MapEndpoint(IEndpointRouteBuilder app) =>
         app.MapGet("/v1/comments/{commentId:guid}/replies", async (
             Guid commentId,
+            ClaimsPrincipal user,
             IMediator mediator,
             int limit,
             DateTimeOffset? cursor,
             CancellationToken ct) =>
         {
-            var cmd = new Command { CommentId = commentId, Limit = limit, Cursor = cursor };
+            Guid? requestingUserId = user.Identity?.IsAuthenticated == true
+                ? user.GetUserId()
+                : null;
+            var cmd = new Command { CommentId = commentId, RequestingUserId = requestingUserId, Limit = limit, Cursor = cursor };
             var result = await mediator.Send(cmd, ct);
             return result.ToApiResult(StatusCodes.Status200OK);
         });
@@ -67,9 +75,13 @@ public static class ListReplies
     {
         public async ValueTask<Result<Response, Error>> Handle(Command cmd, CancellationToken ct)
         {
-            var commentExists = await db.Comments.AnyAsync(c => c.Id == cmd.CommentId, ct);
-            if (!commentExists)
+            var parentComment = await db.Comments.FirstOrDefaultAsync(c => c.Id == cmd.CommentId, ct);
+            if (parentComment is null)
                 return Errors.Comment.NotFound(cmd.CommentId);
+
+            var videoAccessible = await IsVideoAccessible(parentComment.VideoId, cmd.RequestingUserId, ct);
+            if (!videoAccessible)
+                return CommonErrors.NotFound(nameof(Video), parentComment.VideoId);
 
             var replies = await FetchReplies(cmd.CommentId, cmd.Cursor, cmd.Limit, ct);
 
@@ -82,6 +94,15 @@ public static class ListReplies
                 Replies = replies,
                 NextCursor = nextCursor
             };
+        }
+
+        private Task<bool> IsVideoAccessible(Guid videoId, Guid? requestingUserId, CancellationToken ct)
+        {
+            return db.Videos.AnyAsync(
+                v => v.Id == videoId
+                     && v.Status == VideoStatus.Ready
+                     && (v.Visibility == VideoVisibility.Public || v.Channel.UserId == requestingUserId),
+                ct);
         }
 
         private Task<List<Response.ReplySummary>> FetchReplies(

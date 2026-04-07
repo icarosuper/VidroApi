@@ -39,6 +39,8 @@ public class Playlist : BaseAuditableEntity
     public PlaylistVisibility Visibility { get; private set; }
     public int VideoCount { get; private set; }
 
+    public bool IsPrivate => Visibility == PlaylistVisibility.Private;
+
     public void UpdateDetails(string name, string? description, PlaylistVisibility visibility, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);

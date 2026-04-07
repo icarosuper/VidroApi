@@ -57,7 +57,9 @@ public static class AddVideoToPlaylist
 
             var userIsNotOwner = playlist.UserId != cmd.UserId;
             if (userIsNotOwner)
-                return Errors.Playlist.NotOwner();
+                return playlist.IsPrivate
+                    ? CommonErrors.NotFound(nameof(Playlist), cmd.PlaylistId)
+                    : Errors.Playlist.NotOwner();
 
             var videoExists = await db.Videos.AnyAsync(v => v.Id == cmd.VideoId, ct);
             if (!videoExists)

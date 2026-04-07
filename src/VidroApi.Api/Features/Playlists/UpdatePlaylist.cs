@@ -80,7 +80,9 @@ public static class UpdatePlaylist
 
             var userIsNotOwner = playlist.UserId != cmd.UserId;
             if (userIsNotOwner)
-                return Errors.Playlist.NotOwner();
+                return playlist.IsPrivate
+                    ? CommonErrors.NotFound(nameof(Playlist), cmd.PlaylistId)
+                    : Errors.Playlist.NotOwner();
 
             playlist.UpdateDetails(cmd.Name, cmd.Description, cmd.Visibility, clock.UtcNow);
             await db.SaveChangesAsync(ct);
