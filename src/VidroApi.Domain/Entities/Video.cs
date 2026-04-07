@@ -47,6 +47,8 @@ public class Video : BaseAuditableEntity
     public int LikeCount { get; private set; }
     public int DislikeCount { get; private set; }
     public int CommentCount { get; private set; }
+    
+    public bool IsPrivate => Visibility == VideoVisibility.Private;
 
     public void UpdateDetails(string title, string? description, List<string> tags,
         VideoVisibility visibility, DateTimeOffset now)

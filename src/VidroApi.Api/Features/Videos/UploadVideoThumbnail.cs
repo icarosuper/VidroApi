@@ -57,7 +57,7 @@ public static class UploadVideoThumbnail
             var isOwner = video.Channel.UserId == cmd.UserId;
             if (!isOwner)
             {
-                return video.Visibility == VideoVisibility.Private
+                return video.IsPrivate
                     ? CommonErrors.NotFound(nameof(Domain.Entities.Video), cmd.VideoId)
                     : Errors.Video.NotOwner();
             }

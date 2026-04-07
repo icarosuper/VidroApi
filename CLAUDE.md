@@ -102,6 +102,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 All code must be in English: class names, method names, variables, test names, log messages, comments, and XML docs. The only exception is commit messages, which are written in Portuguese.
 
+## Git commits
+
+**NEVER commit code without explicit user request.** Always:
+1. Implement the changes
+2. Run tests to verify they pass
+3. Show the user the changes and suggest a commit message
+4. Wait for the user to approve or request the commit
+
+The user will decide when and how to commit.
+
 ## Working style
 
 After each implementation step:
@@ -151,7 +161,7 @@ Domain ← Application ← Infrastructure ← Api
 
 - **Domain** — entities, enums, `DomainError`. No external dependencies.
 - **Application** — one file per feature (slice). Defines interfaces (`IMinioService`, `IJobQueueService`) that Infrastructure implements. No EF Core here.
-- **Infrastructure** — EF Core `AppDbContext`, `MinioService`, `RedisJobQueueService`, `TokenService`, `DateTimeProvider`, settings classes. All external I/O lives here. Entity mappings use `IEntityTypeConfiguration<T>` (one file per entity in `Persistence/Configurations/`). `OnModelCreating` applies `DeleteBehavior.Restrict` globally for all FKs.
+- **Infrastructure** — EF Core `AppDbContext`, `MinioService`, `RedisJobQueueService`, `TokenService`, `DateTimeProvider`, settings classes. All external I/O lives here. Entity mappings use `IEntityTypeConfiguration<T>` (one file per entity in `Persistence/Configurations/`). `OnModelCreating` applies `DeleteBehavior.Cascade` globally for all FKs.
 - **Api** — `Program.cs` only. Registers DI, middleware, JWT, calls `FeatureName.MapEndpoint(app)` for every slice, and registers background services (`BackgroundServices/`).
 
 ### Vertical Slice pattern
@@ -267,11 +277,12 @@ DIY JWT — no ASP.NET Core Identity. `TokenService` (Infrastructure) generates 
 ## Design decisions
 
 - **Counters are denormalized** — `LikeCount`, `DislikeCount`, `ViewCount` on `Videos` and `FollowerCount` on `Channels` are updated atomically via `ExecuteUpdateAsync`. Never use `COUNT(*)` for these.
+- **`VideoCount` on playlists is a historical counter** — it is incremented when a video is added and decremented when explicitly removed by the user, but **never decremented when a video is deleted**. This is intentional (same behavior as YouTube). `DeleteBehavior.SetNull` on `PlaylistItem.VideoId` handles the FK automatically; `GetPlaylist` filters out items with `VideoId = NULL` in the response.
 - **Cursor-based pagination everywhere** — use `CreatedAt` as cursor, never `OFFSET`.
 - **Declare composite indexes for every common query pattern** — whenever a query filters by two or more columns together (e.g. `WHERE video_id = ? AND parent_comment_id IS NULL`, `WHERE status = ? AND visibility = ?`), add a composite `HasIndex` in the entity's `IEntityTypeConfiguration`. EF Core auto-creates single-column FK indexes, but never composite ones. Add the index in the configuration file alongside the rest of the mapping, not in a migration.
 - **Videos belong to Channels, not Users** — `Video.ChannelId → Channel.UserId`. A user can own multiple channels.
 - **`VideoArtifacts` and `VideoMetadata` are separate tables** — 1:1 with `Videos`, nullable until processing completes.
-- **`DeleteBehavior.Restrict` is global** — `OnModelCreating` enforces `Restrict` on every FK. Any handler that hard-deletes an entity must manually delete all dependents first, in leaf-to-root order. The full dependency chain is: `CommentReactions → Comments (replies before roots) → Reactions → VideoArtifacts → VideoMetadata → Videos → ChannelFollowers → Channel`. Never rely on database cascade; always delete explicitly via `ExecuteDeleteAsync`.
+- **`DeleteBehavior.Cascade` is global** — `OnModelCreating` enforces `Cascade` on every FK by default. Deleting a parent automatically deletes all dependents at the database level (PostgreSQL `ON DELETE CASCADE`), which is atomic — either everything deletes or nothing does, within the same transaction. Use `DeleteBehavior.Restrict` explicitly only when you need to block deletion if dependents exist (shared data, peer relationships). Use `DeleteBehavior.SetNull` when the child should survive without a parent (e.g. `PlaylistItem.VideoId`).
 - **MinIO cleanup goes through `PendingStorageCleanup`** — never call `IMinioService` directly from a delete handler. Instead, stage `PendingStorageCleanup` records (one per object path or prefix) inside the same transaction that deletes the DB rows. `StorageCleanupService` processes the table in the background. Use `isPrefix: true` for paths that require `DeleteObjectsByPrefixAsync` (HLS segments, thumbnails folder).
 - **Single presigned PUT URL for upload** — multipart is planned but not implemented. See `docs/plans/` for future work.
 
