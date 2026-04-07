@@ -45,7 +45,7 @@ public static class DeleteVideo
 
             var isOwner = video.Channel.UserId == cmd.UserId;
             if (!isOwner)
-                return video.Visibility == VideoVisibility.Private
+                return video.IsPrivate
                     ? CommonErrors.NotFound(nameof(Video), cmd.VideoId)
                     : Errors.Video.NotOwner();
 
