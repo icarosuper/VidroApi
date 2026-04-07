@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using VidroApi.Api.Extensions;
 using VidroApi.Application.Abstractions;
 using VidroApi.Domain.Entities;
-using VidroApi.Domain.Enums;
 using VidroApi.Domain.Errors;
 using VidroApi.Domain.Errors.EntityErrors;
 using VidroApi.Infrastructure.Persistence;
@@ -51,7 +50,6 @@ public static class DeleteVideo
 
             await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-            await DeleteRelatedEntities(cmd.VideoId, ct);
             StageStorageCleanup(video, clock.UtcNow);
 
             var deletedVideoRows = await db.Videos.Where(v => v.Id == cmd.VideoId).ExecuteDeleteAsync(ct);
@@ -71,18 +69,6 @@ public static class DeleteVideo
                 .Include(v => v.Channel)
                 .Include(v => v.Artifacts)
                 .FirstOrDefaultAsync(v => v.Id == videoId, ct);
-        }
-
-        private async Task DeleteRelatedEntities(Guid videoId, CancellationToken ct)
-        {
-            var commentIds = db.Comments.Where(c => c.VideoId == videoId).Select(c => c.Id);
-
-            await db.CommentReactions.Where(cr => commentIds.Contains(cr.CommentId)).ExecuteDeleteAsync(ct);
-            await db.Comments.Where(c => c.VideoId == videoId && c.ParentCommentId != null).ExecuteDeleteAsync(ct);
-            await db.Comments.Where(c => c.VideoId == videoId).ExecuteDeleteAsync(ct);
-            await db.Reactions.Where(r => r.VideoId == videoId).ExecuteDeleteAsync(ct);
-            await db.VideoArtifacts.Where(a => a.VideoId == videoId).ExecuteDeleteAsync(ct);
-            await db.VideoMetadata.Where(m => m.VideoId == videoId).ExecuteDeleteAsync(ct);
         }
 
         private void StageStorageCleanup(Video video, DateTimeOffset now)

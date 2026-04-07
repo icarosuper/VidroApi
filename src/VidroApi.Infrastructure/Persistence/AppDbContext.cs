@@ -32,8 +32,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             foreach (var foreignKey in entityType.GetForeignKeys())
             {
-                if (foreignKey.DeleteBehavior != DeleteBehavior.ClientCascade)
-                    foreignKey.DeleteBehavior = DeleteBehavior.Restrict;
+                if (foreignKey.DeleteBehavior != DeleteBehavior.SetNull)
+                    foreignKey.DeleteBehavior = DeleteBehavior.Cascade;
             }
         }
     }

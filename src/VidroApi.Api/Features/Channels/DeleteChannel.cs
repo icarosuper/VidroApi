@@ -52,7 +52,6 @@ public static class DeleteChannel
             await using var tx = await db.Database.BeginTransactionAsync(ct);
 
             await StageStorageCleanup(cmd.ChannelId, ct);
-            await DeleteChannelData(cmd.ChannelId, ct);
 
             db.Channels.Remove(channel);
             await db.SaveChangesAsync(ct);
@@ -90,27 +89,5 @@ public static class DeleteChannel
             }
         }
 
-        private async Task DeleteChannelData(Guid channelId, CancellationToken ct)
-        {
-            var videoIds = db.Videos.Where(v => v.ChannelId == channelId).Select(v => v.Id);
-            var commentIds = db.Comments.Where(c => videoIds.Contains(c.VideoId)).Select(c => c.Id);
-
-            await db.CommentReactions.Where(cr => commentIds.Contains(cr.CommentId)).ExecuteDeleteAsync(ct);
-            await db.Comments.Where(c => videoIds.Contains(c.VideoId) && c.ParentCommentId != null).ExecuteDeleteAsync(ct);
-            await db.Comments.Where(c => videoIds.Contains(c.VideoId)).ExecuteDeleteAsync(ct);
-            await db.Reactions.Where(r => videoIds.Contains(r.VideoId)).ExecuteDeleteAsync(ct);
-            await db.VideoArtifacts.Where(a => videoIds.Contains(a.VideoId)).ExecuteDeleteAsync(ct);
-            await db.VideoMetadata.Where(m => videoIds.Contains(m.VideoId)).ExecuteDeleteAsync(ct);
-            await RemoveChannelPlaylistData(channelId, ct);
-            await db.Videos.Where(v => v.ChannelId == channelId).ExecuteDeleteAsync(ct);
-            await db.ChannelFollowers.Where(cf => cf.ChannelId == channelId).ExecuteDeleteAsync(ct);
-        }
-
-        private async Task RemoveChannelPlaylistData(Guid channelId, CancellationToken ct)
-        {
-            var channelPlaylistIds = db.Playlists.Where(p => p.ChannelId == channelId).Select(p => p.Id);
-            await db.PlaylistItems.Where(pi => channelPlaylistIds.Contains(pi.PlaylistId)).ExecuteDeleteAsync(ct);
-            await db.Playlists.Where(p => p.ChannelId == channelId).ExecuteDeleteAsync(ct);
-        }
     }
 }

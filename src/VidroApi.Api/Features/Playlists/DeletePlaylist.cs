@@ -46,17 +46,8 @@ public static class DeletePlaylist
                     ? CommonErrors.NotFound(nameof(Playlist), cmd.PlaylistId)
                     : Errors.Playlist.NotOwner();
 
-            await using var tx = await db.Database.BeginTransactionAsync(ct);
-
-            await db.PlaylistItems
-                .Where(pi => pi.PlaylistId == cmd.PlaylistId)
-                .ExecuteDeleteAsync(ct);
-
-            await db.Playlists
-                .Where(p => p.Id == cmd.PlaylistId)
-                .ExecuteDeleteAsync(ct);
-
-            await tx.CommitAsync(ct);
+            db.Playlists.Remove(playlist);
+            await db.SaveChangesAsync(ct);
 
             return UnitResult.Success<Error>();
         }

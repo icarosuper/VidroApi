@@ -161,7 +161,7 @@ Domain ← Application ← Infrastructure ← Api
 
 - **Domain** — entities, enums, `DomainError`. No external dependencies.
 - **Application** — one file per feature (slice). Defines interfaces (`IMinioService`, `IJobQueueService`) that Infrastructure implements. No EF Core here.
-- **Infrastructure** — EF Core `AppDbContext`, `MinioService`, `RedisJobQueueService`, `TokenService`, `DateTimeProvider`, settings classes. All external I/O lives here. Entity mappings use `IEntityTypeConfiguration<T>` (one file per entity in `Persistence/Configurations/`). `OnModelCreating` applies `DeleteBehavior.Restrict` globally for all FKs.
+- **Infrastructure** — EF Core `AppDbContext`, `MinioService`, `RedisJobQueueService`, `TokenService`, `DateTimeProvider`, settings classes. All external I/O lives here. Entity mappings use `IEntityTypeConfiguration<T>` (one file per entity in `Persistence/Configurations/`). `OnModelCreating` applies `DeleteBehavior.Cascade` globally for all FKs.
 - **Api** — `Program.cs` only. Registers DI, middleware, JWT, calls `FeatureName.MapEndpoint(app)` for every slice, and registers background services (`BackgroundServices/`).
 
 ### Vertical Slice pattern
@@ -282,7 +282,7 @@ DIY JWT — no ASP.NET Core Identity. `TokenService` (Infrastructure) generates 
 - **Declare composite indexes for every common query pattern** — whenever a query filters by two or more columns together (e.g. `WHERE video_id = ? AND parent_comment_id IS NULL`, `WHERE status = ? AND visibility = ?`), add a composite `HasIndex` in the entity's `IEntityTypeConfiguration`. EF Core auto-creates single-column FK indexes, but never composite ones. Add the index in the configuration file alongside the rest of the mapping, not in a migration.
 - **Videos belong to Channels, not Users** — `Video.ChannelId → Channel.UserId`. A user can own multiple channels.
 - **`VideoArtifacts` and `VideoMetadata` are separate tables** — 1:1 with `Videos`, nullable until processing completes.
-- **`DeleteBehavior.Restrict` is global** — `OnModelCreating` enforces `Restrict` on every FK. Any handler that hard-deletes an entity must manually delete all dependents first, in leaf-to-root order. The full dependency chain is: `CommentReactions → Comments (replies before roots) → Reactions → VideoArtifacts → VideoMetadata → Videos → ChannelFollowers → Channel`. Never rely on database cascade; always delete explicitly via `ExecuteDeleteAsync`.
+- **`DeleteBehavior.Cascade` is global** — `OnModelCreating` enforces `Cascade` on every FK by default. Deleting a parent automatically deletes all dependents at the database level (PostgreSQL `ON DELETE CASCADE`), which is atomic — either everything deletes or nothing does, within the same transaction. Use `DeleteBehavior.Restrict` explicitly only when you need to block deletion if dependents exist (shared data, peer relationships). Use `DeleteBehavior.SetNull` when the child should survive without a parent (e.g. `PlaylistItem.VideoId`).
 - **MinIO cleanup goes through `PendingStorageCleanup`** — never call `IMinioService` directly from a delete handler. Instead, stage `PendingStorageCleanup` records (one per object path or prefix) inside the same transaction that deletes the DB rows. `StorageCleanupService` processes the table in the background. Use `isPrefix: true` for paths that require `DeleteObjectsByPrefixAsync` (HLS segments, thumbnails folder).
 - **Single presigned PUT URL for upload** — multipart is planned but not implemented. See `docs/plans/` for future work.
 
