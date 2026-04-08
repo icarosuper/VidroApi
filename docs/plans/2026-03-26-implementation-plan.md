@@ -1600,10 +1600,10 @@ public static class GetChannel
     }
 
     public static void MapEndpoint(IEndpointRouteBuilder app) =>
-        app.MapGet("/channels/{id:guid}", async (
-            Guid id, IMediator mediator, CancellationToken ct) =>
+        app.MapGet("/v1/users/{username}/channels/{handle}", async (
+            string username, string handle, IMediator mediator, CancellationToken ct) =>
         {
-            var result = await mediator.Send(new Request(id), ct);
+            var result = await mediator.Send(new Request { Username = username, Handle = handle }, ct);
             return result is null ? Results.NotFound() : Results.Ok(result);
         });
 }
@@ -1684,10 +1684,10 @@ public static class FollowChannel
     }
 
     public static void MapEndpoint(IEndpointRouteBuilder app) =>
-        app.MapPost("/channels/{id:guid}/follow", async (
-            Guid id, IMediator mediator, HttpContext ctx, CancellationToken ct) =>
+        app.MapPost("/v1/users/{username}/channels/{handle}/follow", async (
+            string username, string handle, IMediator mediator, HttpContext ctx, CancellationToken ct) =>
         {
-            await mediator.Send(new Request(id, ctx.User.GetUserId()), ct);
+            await mediator.Send(new Request { Username = username, Handle = handle, UserId = ctx.User.GetUserId() }, ct);
             return Results.NoContent();
         }).RequireAuthorization();
 }
@@ -2506,12 +2506,13 @@ dotnet ef migrations add AddPlaylists --project src/VidroApi.Infrastructure --st
 
 | Method | Route | Auth | Descrição |
 |--------|-------|------|-----------|
-| POST | `/v1/channels/{channelId}/avatar` | ✅ dono | Gera presigned URL para upload de avatar do canal |
+| POST | `/v1/channels/{handle}/avatar` | ✅ dono | Gera presigned URL para upload de avatar do canal |
 
 **Regras de negócio:**
 - Apenas o dono do canal pode fazer upload → 403 se não for dono.
 - Retorna `uploadUrl` e `expiresAt`.
 - Path é determinístico (`avatars/channels/{channelId}`), então `AvatarPath` pode ser gravado no banco imediatamente.
+- A rota usa `{handle}` (string única por usuário), não `{channelId}`. O usuário logado é sempre o dono do canal sendo acessado.
 - `GetChannel` retorna `avatarUrl` (presigned, TTL: 1h) ou `null` se não houver avatar.
 - `ListMyChannels` também retorna `avatarUrl` para cada canal.
 - **Integração com vídeos:** todos os endpoints de listagem/obtenção de vídeo retornam `channelAvatarUrl` (presigned):
@@ -2625,7 +2626,7 @@ ReorderPlaylistItems.MapEndpoint(app);
 
 **Implementado em:** `src/VidroApi.Api/Features/Channels/ListUserChannels.cs`
 
-- Endpoint `GET /v1/users/{userId:guid}/channels` — sem autenticação obrigatória
+- Endpoint `GET /v1/users/{username}/channels` — sem autenticação obrigatória
 - Retorna lista de canais com `ChannelSummary`: id, nome, descrição, contagem de seguidores, avatar URL
 - Gera URLs presignadas para avatars dos canais com TTL via MinIO
 - Validação: retorna erro 404 se o usuário não existe
@@ -2648,7 +2649,7 @@ ReorderPlaylistItems.MapEndpoint(app);
 
 ## Task 26: ✅ Channels — Melhorias em GetChannel
 
-**Descrição:** Adicionar dados do dono do canal no endpoint `GET /v1/channels/{channelId}`.
+**Descrição:** Adicionar dados do dono do canal no endpoint `GET /v1/users/{username}/channels/{handle}`.
 
 **Implementado em:** `src/VidroApi.Api/Features/Channels/GetChannel.cs`
 

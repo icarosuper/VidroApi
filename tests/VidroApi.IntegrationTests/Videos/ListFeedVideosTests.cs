@@ -45,10 +45,10 @@ public class ListFeedVideosTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ListFeedVideos_ReturnsReadyVideosFromFollowedChannels()
     {
-        var (creatorToken, channelId) = await CreateChannelAndGetIds();
-        var (followerToken, _) = await CreateChannelAndGetIds();
+        var (creatorToken, channelId, creatorUsername, creatorHandle) = await CreateChannelAndGetIds();
+        var (followerToken, _, _, _) = await CreateChannelAndGetIds();
 
-        await FollowChannelAsync(followerToken, channelId);
+        await FollowChannelAsync(followerToken, creatorUsername, creatorHandle);
 
         var videoId = await CreateReadyVideoAsync(creatorToken, channelId, "Feed Video");
 
@@ -66,11 +66,11 @@ public class ListFeedVideosTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ListFeedVideos_DoesNotIncludeOwnChannelVideos()
     {
-        var (userToken, ownChannelId) = await CreateChannelAndGetIds();
-        var (otherToken, otherChannelId) = await CreateChannelAndGetIds();
+        var (userToken, ownChannelId, userUsername, userHandle) = await CreateChannelAndGetIds();
+        var (otherToken, otherChannelId, otherUsername, otherHandle) = await CreateChannelAndGetIds();
 
         // User follows their own channel (unusual but possible via API if allowed) and another channel
-        await FollowChannelAsync(userToken, otherChannelId);
+        await FollowChannelAsync(userToken, otherUsername, otherHandle);
         await CreateReadyVideoAsync(userToken, ownChannelId, "Own Video");
         await CreateReadyVideoAsync(otherToken, otherChannelId, "Other Video");
 
@@ -90,10 +90,10 @@ public class ListFeedVideosTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ListFeedVideos_DoesNotIncludeNonReadyVideos()
     {
-        var (creatorToken, channelId) = await CreateChannelAndGetIds();
-        var (followerToken, _) = await CreateChannelAndGetIds();
+        var (creatorToken, channelId, creatorUsername, creatorHandle) = await CreateChannelAndGetIds();
+        var (followerToken, _, _, _) = await CreateChannelAndGetIds();
 
-        await FollowChannelAsync(followerToken, channelId);
+        await FollowChannelAsync(followerToken, creatorUsername, creatorHandle);
 
         // Create a video but do NOT complete processing — stays in PendingUpload
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", creatorToken);
@@ -115,10 +115,10 @@ public class ListFeedVideosTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ListFeedVideos_DoesNotIncludePrivateVideos()
     {
-        var (creatorToken, channelId) = await CreateChannelAndGetIds();
-        var (followerToken, _) = await CreateChannelAndGetIds();
+        var (creatorToken, channelId, creatorUsername, creatorHandle) = await CreateChannelAndGetIds();
+        var (followerToken, _, _, _) = await CreateChannelAndGetIds();
 
-        await FollowChannelAsync(followerToken, channelId);
+        await FollowChannelAsync(followerToken, creatorUsername, creatorHandle);
         await CreateReadyVideoAsync(creatorToken, channelId, "Private Video", visibility: 2);
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", followerToken);
@@ -132,10 +132,10 @@ public class ListFeedVideosTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ListFeedVideos_ReturnsThumbnailUrls()
     {
-        var (creatorToken, channelId) = await CreateChannelAndGetIds();
-        var (followerToken, _) = await CreateChannelAndGetIds();
+        var (creatorToken, channelId, creatorUsername, creatorHandle) = await CreateChannelAndGetIds();
+        var (followerToken, _, _, _) = await CreateChannelAndGetIds();
 
-        await FollowChannelAsync(followerToken, channelId);
+        await FollowChannelAsync(followerToken, creatorUsername, creatorHandle);
         await CreateReadyVideoAsync(creatorToken, channelId, "Video With Thumbnail");
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", followerToken);
@@ -151,10 +151,10 @@ public class ListFeedVideosTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ListFeedVideos_PaginationWithCursor_ReturnsNextPage()
     {
-        var (creatorToken, channelId) = await CreateChannelAndGetIds();
-        var (followerToken, _) = await CreateChannelAndGetIds();
+        var (creatorToken, channelId, creatorUsername, creatorHandle) = await CreateChannelAndGetIds();
+        var (followerToken, _, _, _) = await CreateChannelAndGetIds();
 
-        await FollowChannelAsync(followerToken, channelId);
+        await FollowChannelAsync(followerToken, creatorUsername, creatorHandle);
 
         for (var i = 0; i < 3; i++)
             await CreateReadyVideoAsync(creatorToken, channelId, $"Video {i}");
@@ -175,10 +175,10 @@ public class ListFeedVideosTests(ApiFactory factory) : IClassFixture<ApiFactory>
         secondData.GetProperty("nextCursor").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
-    private async Task FollowChannelAsync(string accessToken, Guid channelId)
+    private async Task FollowChannelAsync(string accessToken, string username, string handle)
     {
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        await _client.PostAsync($"/v1/channels/{channelId}/follow", null);
+        await _client.PostAsync($"/v1/users/{username}/channels/{handle}/follow", null);
     }
 
     private async Task<Guid> CreateReadyVideoAsync(string accessToken, Guid channelId, string title, int visibility = 0)
@@ -246,16 +246,26 @@ public class ListFeedVideosTests(ApiFactory factory) : IClassFixture<ApiFactory>
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    private async Task<(string AccessToken, Guid ChannelId)> CreateChannelAndGetIds()
+    private async Task<(string AccessToken, Guid ChannelId, string Username, string Handle)> CreateChannelAndGetIds()
     {
-        var accessToken = await SignUpAndGetAccessToken();
+        var username = $"usr{Guid.NewGuid():N}"[..15];
+        var email = $"user_{Guid.NewGuid():N}@example.com";
+        var password = "StrongPass1!";
+
+        await _client.PostAsJsonAsync("/v1/auth/signup", new { username, email, password });
+
+        var signInResponse = await _client.PostAsJsonAsync("/v1/auth/signin", new { email, password });
+        var signInBody = await signInResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        var accessToken = signInBody.GetProperty("data").GetProperty("accessToken").GetString()!;
+
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { name = "My Channel" });
+        var handle = $"ch{Guid.NewGuid():N}"[..15];
+        var channelResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels", new { handle, name = "My Channel" });
         var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
 
-        return (accessToken, channelId);
+        return (accessToken, channelId, username, handle);
     }
 
     private async Task<string> SignUpAndGetAccessToken()

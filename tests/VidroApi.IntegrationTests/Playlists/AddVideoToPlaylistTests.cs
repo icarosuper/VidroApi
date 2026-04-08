@@ -23,7 +23,7 @@ public class AddVideoToPlaylistTests(ApiFactory factory) : IClassFixture<ApiFact
     [Fact]
     public async Task AddVideoToPlaylist_ValidVideo_Returns204()
     {
-        var (token, channelId) = await CreateChannelAndGetIds();
+        var (token, channelId, _) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         var videoId = await CreateReadyVideo(channelId);
         var playlistId = await CreatePlaylist("My Playlist");
@@ -36,7 +36,7 @@ public class AddVideoToPlaylistTests(ApiFactory factory) : IClassFixture<ApiFact
     [Fact]
     public async Task AddVideoToPlaylist_VideoCount_Increments()
     {
-        var (token, channelId) = await CreateChannelAndGetIds();
+        var (token, channelId, _) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         var videoId = await CreateReadyVideo(channelId);
         var playlistId = await CreatePlaylist("My Playlist");
@@ -52,7 +52,7 @@ public class AddVideoToPlaylistTests(ApiFactory factory) : IClassFixture<ApiFact
     [Fact]
     public async Task AddVideoToPlaylist_VideoAlreadyInPlaylist_Returns409WithExpectedCode()
     {
-        var (token, channelId) = await CreateChannelAndGetIds();
+        var (token, channelId, _) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         var videoId = await CreateReadyVideo(channelId);
         var playlistId = await CreatePlaylist("My Playlist");
@@ -69,10 +69,10 @@ public class AddVideoToPlaylistTests(ApiFactory factory) : IClassFixture<ApiFact
     [Fact]
     public async Task AddVideoToPlaylist_ChannelScopeVideoFromOtherChannel_Returns400WithExpectedCode()
     {
-        var (token, channelId) = await CreateChannelAndGetIds();
+        var (token, channelId, username) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var otherChannelResponse = await _client.PostAsJsonAsync("/v1/channels", new { name = "Other Channel" });
+        var otherChannelResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels", new { handle = "other-channel", name = "Other Channel" });
         var otherChannelBody = await otherChannelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var otherChannelId = Guid.Parse(otherChannelBody.GetProperty("data").GetProperty("channelId").GetString()!);
         var otherVideoId = await CreateReadyVideo(otherChannelId);
@@ -110,7 +110,7 @@ public class AddVideoToPlaylistTests(ApiFactory factory) : IClassFixture<ApiFact
     [Fact]
     public async Task AddVideoToPlaylist_WhenNotOwner_Returns403()
     {
-        var (ownerToken, _) = await CreateChannelAndGetIds();
+        var (ownerToken, _, _) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
         var playlistId = await CreatePlaylist("Owner Playlist");
 
@@ -207,16 +207,25 @@ public class AddVideoToPlaylistTests(ApiFactory factory) : IClassFixture<ApiFact
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    private async Task<(string Token, Guid ChannelId)> CreateChannelAndGetIds()
+    private async Task<(string Token, Guid ChannelId, string Username)> CreateChannelAndGetIds()
     {
-        var token = await SignUpAndGetAccessToken();
+        var username = $"usr{Guid.NewGuid():N}"[..15];
+        var email = $"user_{Guid.NewGuid():N}@example.com";
+        var password = "StrongPass1!";
+
+        await _client.PostAsJsonAsync("/v1/auth/signup", new { username, email, password });
+
+        var signInResponse = await _client.PostAsJsonAsync("/v1/auth/signin", new { email, password });
+        var signInBody = await signInResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        var token = signInBody.GetProperty("data").GetProperty("accessToken").GetString()!;
+
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { name = "My Channel" });
+        var channelResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels", new { handle = "test-channel", name = "My Channel" });
         var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
 
-        return (token, channelId);
+        return (token, channelId, username);
     }
 
     private async Task<string> SignUpAndGetAccessToken()

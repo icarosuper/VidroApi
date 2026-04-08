@@ -15,7 +15,7 @@ public static class ListUserChannels
 {
     public record Command : IRequest<Result<Response, Error>>
     {
-        public Guid UserId { get; init; }
+        public string Username { get; init; } = null!;
     }
 
     public record Response
@@ -25,6 +25,7 @@ public static class ListUserChannels
         public record ChannelSummary
         {
             public Guid ChannelId { get; init; }
+            public string Handle { get; init; } = null!;
             public string Name { get; init; } = null!;
             public string? Description { get; init; }
             public int FollowerCount { get; init; }
@@ -33,12 +34,12 @@ public static class ListUserChannels
     }
 
     public static void MapEndpoint(IEndpointRouteBuilder app) =>
-        app.MapGet("/v1/users/{userId:guid}/channels", async (
-            Guid userId,
+        app.MapGet("/v1/users/{username}/channels", async (
+            string username,
             IMediator mediator,
             CancellationToken ct) =>
         {
-            var cmd = new Command { UserId = userId };
+            var cmd = new Command { Username = username };
             var result = await mediator.Send(cmd, ct);
             return result.ToApiResult(StatusCodes.Status200OK);
         });
@@ -53,14 +54,12 @@ public static class ListUserChannels
 
         public async ValueTask<Result<Response, Error>> Handle(Command cmd, CancellationToken ct)
         {
-            var userExists = await db.Users
-                .AnyAsync(u => u.Id == cmd.UserId, ct);
-
+            var userExists = await db.Users.AnyAsync(u => u.Username == cmd.Username, ct);
             if (!userExists)
-                return CommonErrors.NotFound(nameof(User), cmd.UserId);
+                return CommonErrors.NotFound(nameof(User), cmd.Username);
 
             var channels = await db.Channels
-                .Where(c => c.UserId == cmd.UserId)
+                .Where(c => c.User.Username == cmd.Username)
                 .OrderBy(c => c.CreatedAt)
                 .ToListAsync(ct);
 
@@ -68,6 +67,7 @@ public static class ListUserChannels
             var summaries = channels.Select((c, i) => new Response.ChannelSummary
             {
                 ChannelId = c.Id,
+                Handle = c.Handle,
                 Name = c.Name,
                 Description = c.Description,
                 FollowerCount = c.FollowerCount,

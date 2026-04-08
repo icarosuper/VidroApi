@@ -283,14 +283,15 @@ Auth
   POST /auth/refresh           { refreshToken }
 
 Channels
-  POST   /channels
-  GET    /channels/{id}
-  PATCH  /channels/{id}
-  DELETE /channels/{id}
-  POST   /channels/{id}/follow
-  DELETE /channels/{id}/follow
-  POST   /channels/{id}/avatar         Presigned PUT URL para foto de perfil do canal
-  GET    /channels/{id}/videos        cursor-based
+  POST   /channels                      Criar canal (autenticado)
+  GET    /users/{username}/channels/{handle}  Buscar canal público por handle
+  PUT    /channels/{handle}             Atualizar canal (autenticado, dono)
+  DELETE /channels/{handle}             Deletar canal (autenticado, dono)
+  GET    /users/{username}/channels    Listar canais públicos de um usuário
+  POST   /users/{username}/channels/{handle}/follow      Seguir canal
+  DELETE /users/{username}/channels/{handle}/follow      Deixar de seguir canal
+  POST   /channels/{handle}/avatar      Presigned PUT URL para avatar (autenticado, dono)
+  GET    /users/{username}/channels/{handle}/videos      Listar vídeos de um canal (cursor-based)
 
 Videos
   POST   /videos                      Cria registro + presigned PUT URL

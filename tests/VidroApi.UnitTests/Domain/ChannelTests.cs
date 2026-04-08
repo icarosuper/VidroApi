@@ -11,9 +11,10 @@ public class ChannelTests
     [Fact]
     public void Constructor_ShouldSetRequiredProperties()
     {
-        var channel = new Channel(UserId, "My Channel", "A description", Now);
+        var channel = new Channel(UserId, "my-channel", "My Channel", "A description", Now);
 
         channel.UserId.Should().Be(UserId);
+        channel.Handle.Should().Be("my-channel");
         channel.Name.Should().Be("My Channel");
         channel.Description.Should().Be("A description");
         channel.FollowerCount.Should().Be(0);
@@ -24,7 +25,7 @@ public class ChannelTests
     [Fact]
     public void Constructor_ShouldAllowNullDescription()
     {
-        var channel = new Channel(UserId, "My Channel", null, Now);
+        var channel = new Channel(UserId, "my-channel", "My Channel", null, Now);
 
         channel.Description.Should().BeNull();
     }
@@ -32,7 +33,7 @@ public class ChannelTests
     [Fact]
     public void UpdateDetails_ShouldUpdateNameAndDescriptionAndSetUpdatedAt()
     {
-        var channel = new Channel(UserId, "Old Name", "Old description", Now);
+        var channel = new Channel(UserId, "my-channel", "Old Name", "Old description", Now);
         var updatedAt = Now.AddDays(1);
 
         channel.UpdateDetails("New Name", "New description", updatedAt);
@@ -41,5 +42,4 @@ public class ChannelTests
         channel.Description.Should().Be("New description");
         channel.UpdatedAt.Should().Be(updatedAt);
     }
-
 }

@@ -19,11 +19,11 @@ public class DeleteChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task DeleteChannel_AsOwner_Returns204()
     {
-        var accessToken = await SignUpAndGetAccessToken();
+        var (accessToken, _) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        var channelId = await CreateChannel("My Channel");
+        await CreateChannel("test-channel", "My Channel");
 
-        var response = await _client.DeleteAsync($"/v1/channels/{channelId}");
+        var response = await _client.DeleteAsync("/v1/channels/test-channel");
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
@@ -31,79 +31,72 @@ public class DeleteChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task DeleteChannel_ChannelNoLongerExistsAfterDeletion()
     {
-        var accessToken = await SignUpAndGetAccessToken();
+        var (accessToken, ownerUsername) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        var channelId = await CreateChannel("My Channel");
+        await CreateChannel("test-channel", "My Channel");
 
-        await _client.DeleteAsync($"/v1/channels/{channelId}");
+        await _client.DeleteAsync("/v1/channels/test-channel");
 
         _client.DefaultRequestHeaders.Authorization = null;
-        var getResponse = await _client.GetAsync($"/v1/channels/{channelId}");
+        var getResponse = await _client.GetAsync($"/v1/users/{ownerUsername}/channels/test-channel");
         getResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
     public async Task DeleteChannel_WithoutAuth_Returns401()
     {
-        var accessToken = await SignUpAndGetAccessToken();
+        var (accessToken, _) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        var channelId = await CreateChannel("My Channel");
+        await CreateChannel("test-channel", "My Channel");
 
         _client.DefaultRequestHeaders.Authorization = null;
-        var response = await _client.DeleteAsync($"/v1/channels/{channelId}");
+        var response = await _client.DeleteAsync("/v1/channels/test-channel");
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
-    public async Task DeleteChannel_WhenNotOwner_Returns403WithExpectedCode()
+    public async Task DeleteChannel_WhenNotOwner_Returns404()
     {
-        var ownerToken = await SignUpAndGetAccessToken();
+        var (ownerToken, _) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
-        var channelId = await CreateChannel("Owner Channel");
+        await CreateChannel("owner-channel", "Owner Channel");
 
-        var otherToken = await SignUpAndGetAccessToken();
+        var (otherToken, _) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", otherToken);
-        var response = await _client.DeleteAsync($"/v1/channels/{channelId}");
-
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        body.GetProperty("code").GetString().Should().Be("channel.not_owner");
-    }
-
-    [Fact]
-    public async Task DeleteChannel_WithNonExistentId_Returns404()
-    {
-        var accessToken = await SignUpAndGetAccessToken();
-        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-
-        var response = await _client.DeleteAsync($"/v1/channels/{Guid.NewGuid()}");
+        var response = await _client.DeleteAsync("/v1/channels/owner-channel");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
-    private async Task<string> SignUpAndGetAccessToken()
+    [Fact]
+    public async Task DeleteChannel_WithNonExistentHandle_Returns404()
     {
+        var (accessToken, _) = await SignUpAndGetCredentials();
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await _client.DeleteAsync("/v1/channels/nonexistent");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    private async Task<(string AccessToken, string Username)> SignUpAndGetCredentials()
+    {
+        var username = $"usr{Guid.NewGuid():N}"[..15];
         var email = $"user_{Guid.NewGuid():N}@example.com";
         var password = "StrongPass1!";
 
-        await _client.PostAsJsonAsync("/v1/auth/signup", new
-        {
-            username = $"usr{Guid.NewGuid():N}"[..15],
-            email,
-            password
-        });
+        await _client.PostAsJsonAsync("/v1/auth/signup", new { username, email, password });
 
         var signInResponse = await _client.PostAsJsonAsync("/v1/auth/signin", new { email, password });
         var body = await signInResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        return body.GetProperty("data").GetProperty("accessToken").GetString()!;
+        var accessToken = body.GetProperty("data").GetProperty("accessToken").GetString()!;
+
+        return (accessToken, username);
     }
 
-    private async Task<string> CreateChannel(string name)
+    private async Task CreateChannel(string handle, string name)
     {
-        var response = await _client.PostAsJsonAsync("/v1/channels", new { name });
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        return body.GetProperty("data").GetProperty("channelId").GetString()!;
+        await _client.PostAsJsonAsync("/v1/channels", new { handle, name });
     }
 }
