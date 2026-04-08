@@ -151,7 +151,7 @@ public class MinioUploadCompletedTests(ApiFactory factory) : IClassFixture<ApiFa
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var channelResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels", new { handle = "test-channel", name = "My Channel" });
+        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
         var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
 

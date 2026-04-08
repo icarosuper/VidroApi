@@ -72,7 +72,7 @@ public class AddVideoToPlaylistTests(ApiFactory factory) : IClassFixture<ApiFact
         var (token, channelId, username) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var otherChannelResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels", new { handle = "other-channel", name = "Other Channel" });
+        var otherChannelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "other-channel", name = "Other Channel" });
         var otherChannelBody = await otherChannelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var otherChannelId = Guid.Parse(otherChannelBody.GetProperty("data").GetProperty("channelId").GetString()!);
         var otherVideoId = await CreateReadyVideo(otherChannelId);
@@ -221,7 +221,7 @@ public class AddVideoToPlaylistTests(ApiFactory factory) : IClassFixture<ApiFact
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var channelResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels", new { handle = "test-channel", name = "My Channel" });
+        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
         var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
 
