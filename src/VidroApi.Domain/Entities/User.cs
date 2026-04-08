@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Text.RegularExpressions;
 
 namespace VidroApi.Domain.Entities;
 
@@ -8,6 +9,8 @@ public class User : BaseEntity
     public const int UsernameMaxLength = 25;
     public const int EmailMaxLength = 255;
     public const int PasswordMinLength = 8;
+
+    private static readonly Regex UsernamePattern = new(@"^[a-z0-9_]+$", RegexOptions.Compiled);
 
     // ReSharper disable once UnusedMember.Local
     [ExcludeFromCodeCoverage]
@@ -19,8 +22,10 @@ public class User : BaseEntity
         ArgumentException.ThrowIfNullOrWhiteSpace(username);
         ArgumentException.ThrowIfNullOrWhiteSpace(email);
         ArgumentException.ThrowIfNullOrWhiteSpace(passwordHash);
-        if (username.Length > UsernameMaxLength)
-            throw new ArgumentException($"Username cannot exceed {UsernameMaxLength} characters.", nameof(username));
+        if (username.Length < UsernameMinLength || username.Length > UsernameMaxLength)
+            throw new ArgumentException($"Username must be between {UsernameMinLength} and {UsernameMaxLength} characters.", nameof(username));
+        if (!UsernamePattern.IsMatch(username))
+            throw new ArgumentException("Username may only contain lowercase letters, digits, and underscores.", nameof(username));
         if (email.Length > EmailMaxLength)
             throw new ArgumentException($"Email cannot exceed {EmailMaxLength} characters.", nameof(email));
 

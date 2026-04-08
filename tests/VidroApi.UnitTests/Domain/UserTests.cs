@@ -57,5 +57,44 @@ public class UserTests
         user.PasswordHash.Should().Be("newhash");
     }
 
+    [Theory]
+    [InlineData("ab")]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("this_username_is_way_too_long_to_be_valid")]
+    public void Constructor_ShouldThrow_WhenUsernameHasInvalidLength(string username)
+    {
+        var act = () => new User(username, "john@example.com", "hash", DateTimeOffset.UtcNow);
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Theory]
+    [InlineData("john doe")]
+    [InlineData("john-doe")]
+    [InlineData("john.doe")]
+    [InlineData("joão")]
+    [InlineData("john@doe")]
+    [InlineData("JohnDoe")]
+    [InlineData("ALLCAPS")]
+    public void Constructor_ShouldThrow_WhenUsernameHasInvalidCharacters(string username)
+    {
+        var act = () => new User(username, "john@example.com", "hash", DateTimeOffset.UtcNow);
+
+        act.Should().Throw<ArgumentException>().WithMessage("*lowercase letters, digits, and underscores*");
+    }
+
+    [Theory]
+    [InlineData("abc")]
+    [InlineData("john_doe")]
+    [InlineData("user123")]
+    [InlineData("under_score_user")]
+    public void Constructor_ShouldAccept_WhenUsernameIsValid(string username)
+    {
+        var act = () => new User(username, "john@example.com", "hash", DateTimeOffset.UtcNow);
+
+        act.Should().NotThrow();
+    }
+
     // Collection navigation tests added when Channel and RefreshToken are implemented
 }
