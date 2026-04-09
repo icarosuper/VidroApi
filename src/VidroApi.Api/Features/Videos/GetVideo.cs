@@ -25,8 +25,10 @@ public static class GetVideo
     {
         public Guid VideoId { get; init; }
         public Guid ChannelId { get; init; }
+        public string ChannelHandle { get; init; } = null!;
         public string ChannelName { get; init; } = null!;
         public string? ChannelAvatarUrl { get; init; }
+        public string OwnerUsername { get; init; } = null!;
         public string Title { get; init; } = null!;
         public string? Description { get; init; }
         public List<string> Tags { get; init; } = [];
@@ -77,8 +79,10 @@ public static class GetVideo
             {
                 VideoId = video.Id,
                 ChannelId = video.ChannelId,
+                ChannelHandle = video.Channel.Handle,
                 ChannelName = video.Channel.Name,
                 ChannelAvatarUrl = channelAvatarUrl,
+                OwnerUsername = video.Channel.User.Username,
                 Title = video.Title,
                 Description = video.Description,
                 Tags = video.Tags,
@@ -97,7 +101,7 @@ public static class GetVideo
         private Task<Domain.Entities.Video?> FetchVideo(Guid videoId, Guid? requestingUserId, CancellationToken ct)
         {
             return db.Videos
-                .Include(v => v.Channel)
+                .Include(v => v.Channel).ThenInclude(c => c.User)
                 .Include(v => v.Artifacts)
                 .FirstOrDefaultAsync(v => v.Id == videoId
                     && (v.Channel.UserId == requestingUserId

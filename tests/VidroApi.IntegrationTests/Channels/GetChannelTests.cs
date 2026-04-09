@@ -17,23 +17,21 @@ public class GetChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
     };
 
     [Fact]
-    public async Task GetChannel_WithValidId_Returns200WithChannelData()
+    public async Task GetChannel_WithValidHandle_Returns200WithChannelData()
     {
         var (accessToken, username) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var createResponse = await _client.PostAsJsonAsync("/v1/channels", new { name = "My Channel", description = "A description" });
-        var createBody = await createResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = createBody.GetProperty("data").GetProperty("channelId").GetString();
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel", description = "A description" });
 
         _client.DefaultRequestHeaders.Authorization = null;
-        var response = await _client.GetAsync($"/v1/channels/{channelId}");
+        var response = await _client.GetAsync($"/v1/users/{username}/channels/test-channel");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var data = body.GetProperty("data");
-        data.GetProperty("channelId").GetString().Should().Be(channelId);
+        data.GetProperty("handle").GetString().Should().Be("test-channel");
         data.GetProperty("name").GetString().Should().Be("My Channel");
         data.GetProperty("description").GetString().Should().Be("A description");
         data.GetProperty("followerCount").GetInt32().Should().Be(0);
@@ -43,9 +41,19 @@ public class GetChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task GetChannel_WithNonExistentId_Returns404()
+    public async Task GetChannel_WithNonExistentHandle_Returns404()
     {
-        var response = await _client.GetAsync($"/v1/channels/{Guid.NewGuid()}");
+        var (_, username) = await SignUpAndGetCredentials();
+
+        var response = await _client.GetAsync($"/v1/users/{username}/channels/nonexistent");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GetChannel_WithNonExistentUsername_Returns404()
+    {
+        var response = await _client.GetAsync("/v1/users/nobody/channels/some-channel");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -53,15 +61,13 @@ public class GetChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task GetChannel_IsPublic_NoAuthRequired()
     {
-        var (accessToken, _) = await SignUpAndGetCredentials();
+        var (accessToken, username) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var createResponse = await _client.PostAsJsonAsync("/v1/channels", new { name = "Public Channel" });
-        var createBody = await createResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = createBody.GetProperty("data").GetProperty("channelId").GetString();
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "public-channel", name = "Public Channel" });
 
         _client.DefaultRequestHeaders.Authorization = null;
-        var response = await _client.GetAsync($"/v1/channels/{channelId}");
+        var response = await _client.GetAsync($"/v1/users/{username}/channels/public-channel");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }

@@ -19,10 +19,10 @@ public class UploadChannelAvatarTests(ApiFactory factory) : IClassFixture<ApiFac
     [Fact]
     public async Task UploadChannelAvatar_WhenOwner_Returns200WithUploadUrl()
     {
-        var (accessToken, channelId) = await CreateChannelAndGetIds();
+        var (accessToken, _) = await CreateChannelAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var response = await _client.PostAsync($"/v1/channels/{channelId}/avatar", null);
+        var response = await _client.PostAsync("/v1/channels/test-channel/avatar", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -33,24 +33,24 @@ public class UploadChannelAvatarTests(ApiFactory factory) : IClassFixture<ApiFac
     }
 
     [Fact]
-    public async Task UploadChannelAvatar_WhenNotOwner_Returns403()
+    public async Task UploadChannelAvatar_WhenNotOwner_Returns404()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
-        var nonOwnerToken = await SignUpAndGetAccessToken();
+        var (_, _) = await CreateChannelAndGetCredentials();
+        var (nonOwnerToken, _) = await SignUpAndGetCredentials();
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", nonOwnerToken);
-        var response = await _client.PostAsync($"/v1/channels/{channelId}/avatar", null);
+        var response = await _client.PostAsync("/v1/channels/test-channel/avatar", null);
 
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
-    public async Task UploadChannelAvatar_WithNonExistentChannel_Returns404()
+    public async Task UploadChannelAvatar_WithNonExistentHandle_Returns404()
     {
-        var accessToken = await SignUpAndGetAccessToken();
+        var (accessToken, _) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var response = await _client.PostAsync($"/v1/channels/{Guid.NewGuid()}/avatar", null);
+        var response = await _client.PostAsync("/v1/channels/nonexistent/avatar", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -58,7 +58,9 @@ public class UploadChannelAvatarTests(ApiFactory factory) : IClassFixture<ApiFac
     [Fact]
     public async Task UploadChannelAvatar_WhenNotAuthenticated_Returns401()
     {
-        var response = await _client.PostAsync($"/v1/channels/{Guid.NewGuid()}/avatar", null);
+        var (_, _) = await CreateChannelAndGetCredentials();
+
+        var response = await _client.PostAsync("/v1/channels/test-channel/avatar", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -66,45 +68,42 @@ public class UploadChannelAvatarTests(ApiFactory factory) : IClassFixture<ApiFac
     [Fact]
     public async Task GetChannel_ReturnsAvatarUrl_AfterUpload()
     {
-        var (accessToken, channelId) = await CreateChannelAndGetIds();
+        var (accessToken, ownerUsername) = await CreateChannelAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        await _client.PostAsync($"/v1/channels/{channelId}/avatar", null);
+        await _client.PostAsync("/v1/channels/test-channel/avatar", null);
 
         _client.DefaultRequestHeaders.Authorization = null;
-        var getResponse = await _client.GetAsync($"/v1/channels/{channelId}");
+        var getResponse = await _client.GetAsync($"/v1/users/{ownerUsername}/channels/test-channel");
         var body = await getResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var avatarUrl = body.GetProperty("data").GetProperty("avatarUrl").GetString();
 
         avatarUrl.Should().NotBeNullOrWhiteSpace();
     }
 
-    private async Task<(string AccessToken, Guid ChannelId)> CreateChannelAndGetIds()
+    private async Task<(string AccessToken, string Username)> CreateChannelAndGetCredentials()
     {
-        var accessToken = await SignUpAndGetAccessToken();
+        var (accessToken, username) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var createResponse = await _client.PostAsJsonAsync("/v1/channels", new { name = $"Channel {Guid.NewGuid()}" });
-        var body = await createResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = Guid.Parse(body.GetProperty("data").GetProperty("channelId").GetString()!);
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = $"Channel {Guid.NewGuid()}" });
 
-        return (accessToken, channelId);
+        _client.DefaultRequestHeaders.Authorization = null;
+        return (accessToken, username);
     }
 
-    private async Task<string> SignUpAndGetAccessToken()
+    private async Task<(string AccessToken, string Username)> SignUpAndGetCredentials()
     {
+        var username = $"usr{Guid.NewGuid():N}"[..15];
         var email = $"user_{Guid.NewGuid():N}@example.com";
         var password = "StrongPass1!";
 
-        await _client.PostAsJsonAsync("/v1/auth/signup", new
-        {
-            username = $"usr{Guid.NewGuid():N}"[..15],
-            email,
-            password
-        });
+        await _client.PostAsJsonAsync("/v1/auth/signup", new { username, email, password });
 
         var signInResponse = await _client.PostAsJsonAsync("/v1/auth/signin", new { email, password });
         var body = await signInResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        return body.GetProperty("data").GetProperty("accessToken").GetString()!;
+        var accessToken = body.GetProperty("data").GetProperty("accessToken").GetString()!;
+
+        return (accessToken, username);
     }
 }

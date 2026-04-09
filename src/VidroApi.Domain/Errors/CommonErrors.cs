@@ -5,6 +5,9 @@ public static class CommonErrors
     public static Error NotFound(string resource, Guid id) =>
         new("resource.not_found", $"'{resource}' with id '{id}' was not found.", ErrorType.NotFound);
 
+    public static Error NotFound(string resource, string identifier) =>
+        new("resource.not_found", $"'{resource}' '{identifier}' was not found.", ErrorType.NotFound);
+
     public static Error Unauthorized(string message = "Authentication is required.") =>
         new("request.unauthorized", message, ErrorType.Unauthorized);
 

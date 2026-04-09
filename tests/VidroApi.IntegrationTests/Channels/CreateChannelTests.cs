@@ -17,13 +17,14 @@ public class CreateChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
     };
 
     [Fact]
-    public async Task CreateChannel_WithValidData_Returns201WithChannelId()
+    public async Task CreateChannel_WithValidData_Returns201WithHandle()
     {
-        var accessToken = await SignUpAndGetAccessToken();
+        var (accessToken, _) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         var response = await _client.PostAsJsonAsync("/v1/channels", new
         {
+            handle = "test-channel",
             name = "My Channel",
             description = "A great channel"
         });
@@ -31,17 +32,18 @@ public class CreateChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
         response.StatusCode.Should().Be(HttpStatusCode.Created);
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        body.GetProperty("data").GetProperty("channelId").GetString().Should().NotBeNullOrWhiteSpace();
+        body.GetProperty("data").GetProperty("handle").GetString().Should().Be("test-channel");
     }
 
     [Fact]
     public async Task CreateChannel_WithValidDataAndNoDescription_Returns201()
     {
-        var accessToken = await SignUpAndGetAccessToken();
+        var (accessToken, _) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         var response = await _client.PostAsJsonAsync("/v1/channels", new
         {
+            handle = "no-desc",
             name = "Channel Without Description"
         });
 
@@ -53,20 +55,68 @@ public class CreateChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
     {
         var response = await _client.PostAsJsonAsync("/v1/channels", new
         {
+            handle = "test-channel",
             name = "My Channel"
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+
     [Fact]
-    public async Task CreateChannel_WithEmptyName_Returns400()
+    public async Task CreateChannel_WithEmptyHandle_Returns400()
     {
-        var accessToken = await SignUpAndGetAccessToken();
+        var (accessToken, _) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         var response = await _client.PostAsJsonAsync("/v1/channels", new
         {
+            handle = "",
+            name = "My Channel"
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task CreateChannel_WithInvalidHandleCharacters_Returns400()
+    {
+        var (accessToken, _) = await SignUpAndGetCredentials();
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await _client.PostAsJsonAsync("/v1/channels", new
+        {
+            handle = "Invalid Handle!",
+            name = "My Channel"
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task CreateChannel_WithDuplicateHandle_Returns409WithExpectedCode()
+    {
+        var (accessToken, _) = await SignUpAndGetCredentials();
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "duplicate", name = "First" });
+        var response = await _client.PostAsJsonAsync("/v1/channels", new { handle = "duplicate", name = "Second" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        body.GetProperty("code").GetString().Should().Be("channel.handle_already_in_use");
+    }
+
+    [Fact]
+    public async Task CreateChannel_WithEmptyName_Returns400()
+    {
+        var (accessToken, _) = await SignUpAndGetCredentials();
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await _client.PostAsJsonAsync("/v1/channels", new
+        {
+            handle = "test-channel",
             name = ""
         });
 
@@ -76,11 +126,12 @@ public class CreateChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task CreateChannel_WithNameTooLong_Returns400()
     {
-        var accessToken = await SignUpAndGetAccessToken();
+        var (accessToken, _) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         var response = await _client.PostAsJsonAsync("/v1/channels", new
         {
+            handle = "test-channel",
             name = new string('a', 101)
         });
 
@@ -90,11 +141,12 @@ public class CreateChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task CreateChannel_WithDescriptionTooLong_Returns400()
     {
-        var accessToken = await SignUpAndGetAccessToken();
+        var (accessToken, _) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         var response = await _client.PostAsJsonAsync("/v1/channels", new
         {
+            handle = "test-channel",
             name = "My Channel",
             description = new string('a', 501)
         });
@@ -105,15 +157,15 @@ public class CreateChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task CreateChannel_WhenLimitReached_Returns409WithExpectedCode()
     {
-        var accessToken = await SignUpAndGetAccessToken();
+        var (accessToken, _) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         for (var i = 0; i < 10; i++)
         {
-            await _client.PostAsJsonAsync("/v1/channels", new { name = $"Channel {i}" });
+            await _client.PostAsJsonAsync("/v1/channels", new { handle = $"channel-{i}", name = $"Channel {i}" });
         }
 
-        var response = await _client.PostAsJsonAsync("/v1/channels", new { name = "One Too Many" });
+        var response = await _client.PostAsJsonAsync("/v1/channels", new { handle = "one-too-many", name = "One Too Many" });
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
 
@@ -121,20 +173,18 @@ public class CreateChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
         body.GetProperty("code").GetString().Should().Be("channel.limit_reached");
     }
 
-    private async Task<string> SignUpAndGetAccessToken()
+    private async Task<(string AccessToken, string Username)> SignUpAndGetCredentials()
     {
+        var username = $"usr{Guid.NewGuid():N}"[..15];
         var email = $"user_{Guid.NewGuid():N}@example.com";
         var password = "StrongPass1!";
 
-        await _client.PostAsJsonAsync("/v1/auth/signup", new
-        {
-            username = $"usr{Guid.NewGuid():N}"[..15],
-            email,
-            password
-        });
+        await _client.PostAsJsonAsync("/v1/auth/signup", new { username, email, password });
 
         var signInResponse = await _client.PostAsJsonAsync("/v1/auth/signin", new { email, password });
         var body = await signInResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        return body.GetProperty("data").GetProperty("accessToken").GetString()!;
+        var accessToken = body.GetProperty("data").GetProperty("accessToken").GetString()!;
+
+        return (accessToken, username);
     }
 }

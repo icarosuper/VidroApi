@@ -177,10 +177,19 @@ public class RemoveVideoFromPlaylistTests(ApiFactory factory) : IClassFixture<Ap
 
     private async Task<(string Token, Guid ChannelId)> CreateChannelAndGetIds()
     {
-        var token = await SignUpAndGetAccessToken();
+        var username = $"usr{Guid.NewGuid():N}"[..15];
+        var email = $"user_{Guid.NewGuid():N}@example.com";
+        var password = "StrongPass1!";
+
+        await _client.PostAsJsonAsync("/v1/auth/signup", new { username, email, password });
+
+        var signInResponse = await _client.PostAsJsonAsync("/v1/auth/signin", new { email, password });
+        var signInBody = await signInResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        var token = signInBody.GetProperty("data").GetProperty("accessToken").GetString()!;
+
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { name = "My Channel" });
+        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
         var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
 

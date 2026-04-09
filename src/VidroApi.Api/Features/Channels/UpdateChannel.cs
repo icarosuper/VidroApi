@@ -22,7 +22,7 @@ public static class UpdateChannel
 
     public record Command : IRequest<UnitResult<Error>>
     {
-        public Guid ChannelId { get; init; }
+        public string Handle { get; init; } = null!;
         public Guid UserId { get; init; }
         public string Name { get; init; } = null!;
         public string? Description { get; init; }
@@ -43,8 +43,8 @@ public static class UpdateChannel
     }
 
     public static void MapEndpoint(IEndpointRouteBuilder app) =>
-        app.MapPut("/v1/channels/{channelId:guid}", async (
-            Guid channelId,
+        app.MapPut("/v1/channels/{handle}", async (
+            string handle,
             Request req,
             ClaimsPrincipal user,
             IMediator mediator,
@@ -52,7 +52,7 @@ public static class UpdateChannel
         {
             var cmd = new Command
             {
-                ChannelId = channelId,
+                Handle = handle,
                 UserId = user.GetUserId(),
                 Name = req.Name,
                 Description = req.Description
@@ -67,14 +67,11 @@ public static class UpdateChannel
     {
         public async ValueTask<UnitResult<Error>> Handle(Command cmd, CancellationToken ct)
         {
-            var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == cmd.ChannelId, ct);
+            var channel = await db.Channels
+                .FirstOrDefaultAsync(c => c.Handle == cmd.Handle && c.UserId == cmd.UserId, ct);
 
             if (channel is null)
-                return CommonErrors.NotFound(nameof(Channel), cmd.ChannelId);
-
-            var userIsNotOwner = channel.UserId != cmd.UserId;
-            if (userIsNotOwner)
-                return Errors.Channel.NotOwner();
+                return CommonErrors.NotFound(nameof(Channel), cmd.Handle);
 
             channel.UpdateDetails(cmd.Name, cmd.Description, clock.UtcNow);
             await db.SaveChangesAsync(ct);

@@ -15,12 +15,14 @@ public static class GetChannel
 {
     public record Command : IRequest<Result<Response, Error>>
     {
-        public Guid ChannelId { get; init; }
+        public string Username { get; init; } = null!;
+        public string Handle { get; init; } = null!;
     }
 
     public record Response
     {
         public Guid ChannelId { get; init; }
+        public string Handle { get; init; } = null!;
         public string Name { get; init; } = null!;
         public string? Description { get; init; }
         public int FollowerCount { get; init; }
@@ -31,12 +33,13 @@ public static class GetChannel
     }
 
     public static void MapEndpoint(IEndpointRouteBuilder app) =>
-        app.MapGet("/v1/channels/{channelId:guid}", async (
-            Guid channelId,
+        app.MapGet("/v1/users/{username}/channels/{handle}", async (
+            string username,
+            string handle,
             IMediator mediator,
             CancellationToken ct) =>
         {
-            var cmd = new Command { ChannelId = channelId };
+            var cmd = new Command { Username = username, Handle = handle };
             var result = await mediator.Send(cmd, ct);
             return result.ToApiResult(StatusCodes.Status200OK);
         });
@@ -53,10 +56,10 @@ public static class GetChannel
         {
             var channel = await db.Channels
                 .Include(c => c.User)
-                .FirstOrDefaultAsync(c => c.Id == cmd.ChannelId, ct);
+                .FirstOrDefaultAsync(c => c.Handle == cmd.Handle && c.User.Username == cmd.Username, ct);
 
             if (channel is null)
-                return CommonErrors.NotFound(nameof(Channel), cmd.ChannelId);
+                return CommonErrors.NotFound(nameof(Channel), $"{cmd.Username}/{cmd.Handle}");
 
             var avatarUrl = await GenerateAvatarUrl(channel.AvatarPath);
             var ownerAvatarUrl = await GenerateAvatarUrl(channel.User.AvatarPath);
@@ -64,6 +67,7 @@ public static class GetChannel
             return new Response
             {
                 ChannelId = channel.Id,
+                Handle = channel.Handle,
                 Name = channel.Name,
                 Description = channel.Description,
                 FollowerCount = channel.FollowerCount,

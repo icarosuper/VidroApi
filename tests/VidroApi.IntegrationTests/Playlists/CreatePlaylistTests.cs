@@ -38,7 +38,7 @@ public class CreatePlaylistTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task CreatePlaylist_ChannelScope_Returns201()
     {
-        var (token, channelId) = await CreateChannelAndGetIds();
+        var (token, channelId, _) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var response = await _client.PostAsJsonAsync("/v1/playlists", new
@@ -71,11 +71,8 @@ public class CreatePlaylistTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task CreatePlaylist_ChannelScopeWithOtherUsersChannel_Returns404()
     {
-        var otherToken = await SignUpAndGetAccessToken();
+        var (otherToken, channelId, otherUsername) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", otherToken);
-        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { name = "Other Channel" });
-        var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
 
         var myToken = await SignUpAndGetAccessToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", myToken);
@@ -137,15 +134,24 @@ public class CreatePlaylistTests(ApiFactory factory) : IClassFixture<ApiFactory>
         return body.GetProperty("data").GetProperty("accessToken").GetString()!;
     }
 
-    private async Task<(string Token, Guid ChannelId)> CreateChannelAndGetIds()
+    private async Task<(string Token, Guid ChannelId, string Username)> CreateChannelAndGetIds()
     {
-        var token = await SignUpAndGetAccessToken();
+        var username = $"usr{Guid.NewGuid():N}"[..15];
+        var email = $"user_{Guid.NewGuid():N}@example.com";
+        var password = "StrongPass1!";
+
+        await _client.PostAsJsonAsync("/v1/auth/signup", new { username, email, password });
+
+        var signInResponse = await _client.PostAsJsonAsync("/v1/auth/signin", new { email, password });
+        var signInBody = await signInResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        var token = signInBody.GetProperty("data").GetProperty("accessToken").GetString()!;
+
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var response = await _client.PostAsJsonAsync("/v1/channels", new { name = "My Channel" });
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = Guid.Parse(body.GetProperty("data").GetProperty("channelId").GetString()!);
+        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
+        var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
 
-        return (token, channelId);
+        return (token, channelId, username);
     }
 }

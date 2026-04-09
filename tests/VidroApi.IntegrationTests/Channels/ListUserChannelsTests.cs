@@ -17,24 +17,26 @@ public class ListUserChannelsTests(ApiFactory factory) : IClassFixture<ApiFactor
     };
 
     [Fact]
-    public async Task ListUserChannels_WithValidUserId_Returns200WithChannelsList()
+    public async Task ListUserChannels_WithValidUsername_Returns200WithChannelsList()
     {
-        var (userId, accessToken, _) = await SignUpAndGetCredentials();
+        var (accessToken, username) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        await _client.PostAsJsonAsync("/v1/channels", new { name = "Channel 1", description = "First channel" });
-        await _client.PostAsJsonAsync("/v1/channels", new { name = "Channel 2", description = "Second channel" });
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "channel-1", name = "Channel 1", description = "First channel" });
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "channel-2", name = "Channel 2", description = "Second channel" });
 
         _client.DefaultRequestHeaders.Authorization = null;
-        var response = await _client.GetAsync($"/v1/users/{userId}/channels");
+        var response = await _client.GetAsync($"/v1/users/{username}/channels");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var channels = body.GetProperty("data").GetProperty("channels");
         channels.GetArrayLength().Should().Be(2);
+        channels[0].GetProperty("handle").GetString().Should().Be("channel-1");
         channels[0].GetProperty("name").GetString().Should().Be("Channel 1");
         channels[0].GetProperty("description").GetString().Should().Be("First channel");
+        channels[1].GetProperty("handle").GetString().Should().Be("channel-2");
         channels[1].GetProperty("name").GetString().Should().Be("Channel 2");
         channels[1].GetProperty("description").GetString().Should().Be("Second channel");
     }
@@ -42,9 +44,9 @@ public class ListUserChannelsTests(ApiFactory factory) : IClassFixture<ApiFactor
     [Fact]
     public async Task ListUserChannels_WithNoChannels_Returns200WithEmptyList()
     {
-        var (userId, _, _) = await SignUpAndGetCredentials();
+        var (_, username) = await SignUpAndGetCredentials();
 
-        var response = await _client.GetAsync($"/v1/users/{userId}/channels");
+        var response = await _client.GetAsync($"/v1/users/{username}/channels");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -54,9 +56,9 @@ public class ListUserChannelsTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task ListUserChannels_WithNonExistentUserId_Returns404()
+    public async Task ListUserChannels_WithNonExistentUsername_Returns404()
     {
-        var response = await _client.GetAsync($"/v1/users/{Guid.NewGuid()}/channels");
+        var response = await _client.GetAsync("/v1/users/nobody/channels");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -64,13 +66,13 @@ public class ListUserChannelsTests(ApiFactory factory) : IClassFixture<ApiFactor
     [Fact]
     public async Task ListUserChannels_IsPublic_NoAuthRequired()
     {
-        var (userId, accessToken, _) = await SignUpAndGetCredentials();
+        var (accessToken, username) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        await _client.PostAsJsonAsync("/v1/channels", new { name = "Test Channel" });
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "Test Channel" });
 
         _client.DefaultRequestHeaders.Authorization = null;
-        var response = await _client.GetAsync($"/v1/users/{userId}/channels");
+        var response = await _client.GetAsync($"/v1/users/{username}/channels");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -78,18 +80,16 @@ public class ListUserChannelsTests(ApiFactory factory) : IClassFixture<ApiFactor
     [Fact]
     public async Task ListUserChannels_OnlyListsChannelsForSpecificUser()
     {
-        var (userId1, accessToken1, _) = await SignUpAndGetCredentials();
+        var (accessToken1, username1) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken1);
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "user1-channel", name = "User1 Channel" });
 
-        await _client.PostAsJsonAsync("/v1/channels", new { name = "User1 Channel" });
-
-        var (userId2, accessToken2, _) = await SignUpAndGetCredentials();
+        var (accessToken2, username2) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken2);
-
-        await _client.PostAsJsonAsync("/v1/channels", new { name = "User2 Channel" });
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "user2-channel", name = "User2 Channel" });
 
         _client.DefaultRequestHeaders.Authorization = null;
-        var response = await _client.GetAsync($"/v1/users/{userId1}/channels");
+        var response = await _client.GetAsync($"/v1/users/{username1}/channels");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -99,20 +99,18 @@ public class ListUserChannelsTests(ApiFactory factory) : IClassFixture<ApiFactor
         channels[0].GetProperty("name").GetString().Should().Be("User1 Channel");
     }
 
-    private async Task<(Guid UserId, string AccessToken, string Username)> SignUpAndGetCredentials()
+    private async Task<(string AccessToken, string Username)> SignUpAndGetCredentials()
     {
         var username = $"usr{Guid.NewGuid():N}"[..15];
         var email = $"user_{Guid.NewGuid():N}@example.com";
         var password = "StrongPass1!";
 
-        var signUpResponse = await _client.PostAsJsonAsync("/v1/auth/signup", new { username, email, password });
-        var signUpBody = await signUpResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var userId = signUpBody.GetProperty("data").GetProperty("userId").GetGuid();
+        await _client.PostAsJsonAsync("/v1/auth/signup", new { username, email, password });
 
         var signInResponse = await _client.PostAsJsonAsync("/v1/auth/signin", new { email, password });
-        var signInBody = await signInResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var accessToken = signInBody.GetProperty("data").GetProperty("accessToken").GetString()!;
+        var body = await signInResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        var accessToken = body.GetProperty("data").GetProperty("accessToken").GetString()!;
 
-        return (userId, accessToken, username);
+        return (accessToken, username);
     }
 }

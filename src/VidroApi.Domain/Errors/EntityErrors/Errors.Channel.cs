@@ -18,5 +18,8 @@ public static partial class Errors
 
         public static Error NotFollowing() =>
             new("channel.not_following", "You are not following this channel.", ErrorType.NotFound);
+
+        public static Error HandleAlreadyInUse() =>
+            new("channel.handle_already_in_use", "You already have a channel with this handle.", ErrorType.Conflict);
     }
 }

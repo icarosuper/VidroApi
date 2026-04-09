@@ -42,8 +42,10 @@ public static class ListFeedVideos
         {
             public Guid VideoId { get; init; }
             public Guid ChannelId { get; init; }
+            public string ChannelHandle { get; init; } = null!;
             public string ChannelName { get; init; } = null!;
             public string? ChannelAvatarUrl { get; init; }
+            public string OwnerUsername { get; init; } = null!;
             public string Title { get; init; } = null!;
             public string? Description { get; init; }
             public List<string> Tags { get; init; } = [];
@@ -110,8 +112,10 @@ public static class ListFeedVideos
             {
                 VideoId = video.Id,
                 ChannelId = video.ChannelId,
+                ChannelHandle = video.Channel.Handle,
                 ChannelName = video.Channel.Name,
                 ChannelAvatarUrl = avatarUrl,
+                OwnerUsername = video.Channel.User.Username,
                 Title = video.Title,
                 Description = video.Description,
                 Tags = video.Tags,
@@ -126,7 +130,7 @@ public static class ListFeedVideos
             Guid userId, DateTimeOffset? cursor, int limit, CancellationToken ct)
         {
             return db.Videos
-                .Include(v => v.Channel)
+                .Include(v => v.Channel).ThenInclude(c => c.User)
                 .Include(v => v.Artifacts)
                 .Where(v =>
                     db.ChannelFollowers.Any(cf => cf.UserId == userId && cf.ChannelId == v.ChannelId)

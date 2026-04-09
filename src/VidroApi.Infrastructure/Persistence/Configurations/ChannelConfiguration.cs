@@ -17,6 +17,13 @@ public class ChannelConfiguration : IEntityTypeConfiguration<Channel>
 
         builder.Property(c => c.UserId).HasColumnName("user_id");
 
+        builder.Property(c => c.Handle)
+            .HasColumnName("handle")
+            .HasMaxLength(Channel.HandleMaxLength)
+            .IsRequired();
+
+        builder.HasIndex(c => new { c.UserId, c.Handle }).IsUnique();
+
         builder.Property(c => c.Name)
             .HasColumnName("name")
             .HasMaxLength(Channel.NameMaxLength)

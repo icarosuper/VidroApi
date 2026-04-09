@@ -18,6 +18,7 @@ public static class CreateChannel
 {
     public record Request
     {
+        public string Handle { get; init; } = null!;
         public string Name { get; init; } = null!;
         public string? Description { get; init; }
     }
@@ -25,6 +26,7 @@ public static class CreateChannel
     public record Command : IRequest<Result<Response, Error>>
     {
         public Guid UserId { get; init; }
+        public string Handle { get; init; } = null!;
         public string Name { get; init; } = null!;
         public string? Description { get; init; }
     }
@@ -32,12 +34,19 @@ public static class CreateChannel
     public record Response
     {
         public Guid ChannelId { get; init; }
+        public string Handle { get; init; } = null!;
     }
 
     public class Validator : AbstractValidator<Command>
     {
         public Validator()
         {
+            RuleFor(x => x.Handle)
+                .NotEmpty()
+                .MinimumLength(Channel.HandleMinLength)
+                .MaximumLength(Channel.HandleMaxLength)
+                .Matches(@"^[a-z0-9-]+$").WithMessage("Handle may only contain lowercase letters, digits, and hyphens.");
+
             RuleFor(x => x.Name)
                 .NotEmpty()
                 .MaximumLength(Channel.NameMaxLength);
@@ -58,6 +67,7 @@ public static class CreateChannel
             var cmd = new Command
             {
                 UserId = user.GetUserId(),
+                Handle = req.Handle,
                 Name = req.Name,
                 Description = req.Description
             };
@@ -77,14 +87,20 @@ public static class CreateChannel
             if (limitReached)
                 return Errors.Channel.LimitReached(maxChannels);
 
-            var channel = new Channel(cmd.UserId, cmd.Name, cmd.Description, clock.UtcNow);
+            var handleAlreadyInUse = await db.Channels.AnyAsync(
+                c => c.UserId == cmd.UserId && c.Handle == cmd.Handle, ct);
+            if (handleAlreadyInUse)
+                return Errors.Channel.HandleAlreadyInUse();
+
+            var channel = new Channel(cmd.UserId, cmd.Handle, cmd.Name, cmd.Description, clock.UtcNow);
 
             db.Channels.Add(channel);
             await db.SaveChangesAsync(ct);
 
             return new Response
             {
-                ChannelId = channel.Id
+                ChannelId = channel.Id,
+                Handle = channel.Handle
             };
         }
     }

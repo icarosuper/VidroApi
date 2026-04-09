@@ -19,11 +19,11 @@ public class FollowChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task FollowChannel_WithValidChannel_Returns204()
     {
-        var channelId = await CreateChannelAsNewUser();
-        var followerToken = await SignUpAndGetAccessToken();
+        var (ownerUsername, channelHandle) = await CreateChannelAsNewUser();
+        var (followerToken, _) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", followerToken);
 
-        var response = await _client.PostAsync($"/v1/channels/{channelId}/follow", null);
+        var response = await _client.PostAsync($"/v1/users/{ownerUsername}/channels/{channelHandle}/follow", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
@@ -31,14 +31,14 @@ public class FollowChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task FollowChannel_IncrementsFollowerCount()
     {
-        var channelId = await CreateChannelAsNewUser();
-        var followerToken = await SignUpAndGetAccessToken();
+        var (ownerUsername, channelHandle) = await CreateChannelAsNewUser();
+        var (followerToken, _) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", followerToken);
 
-        await _client.PostAsync($"/v1/channels/{channelId}/follow", null);
+        await _client.PostAsync($"/v1/users/{ownerUsername}/channels/{channelHandle}/follow", null);
 
         _client.DefaultRequestHeaders.Authorization = null;
-        var getResponse = await _client.GetAsync($"/v1/channels/{channelId}");
+        var getResponse = await _client.GetAsync($"/v1/users/{ownerUsername}/channels/{channelHandle}");
         var body = await getResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
 
         body.GetProperty("data").GetProperty("followerCount").GetInt32().Should().Be(1);
@@ -47,12 +47,12 @@ public class FollowChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task FollowChannel_WhenAlreadyFollowing_Returns409WithExpectedCode()
     {
-        var channelId = await CreateChannelAsNewUser();
-        var followerToken = await SignUpAndGetAccessToken();
+        var (ownerUsername, channelHandle) = await CreateChannelAsNewUser();
+        var (followerToken, _) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", followerToken);
 
-        await _client.PostAsync($"/v1/channels/{channelId}/follow", null);
-        var response = await _client.PostAsync($"/v1/channels/{channelId}/follow", null);
+        await _client.PostAsync($"/v1/users/{ownerUsername}/channels/{channelHandle}/follow", null);
+        var response = await _client.PostAsync($"/v1/users/{ownerUsername}/channels/{channelHandle}/follow", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
 
@@ -63,9 +63,9 @@ public class FollowChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task FollowChannel_WithoutAuth_Returns401()
     {
-        var channelId = await CreateChannelAsNewUser();
+        var (ownerUsername, channelHandle) = await CreateChannelAsNewUser();
 
-        var response = await _client.PostAsync($"/v1/channels/{channelId}/follow", null);
+        var response = await _client.PostAsync($"/v1/users/{ownerUsername}/channels/{channelHandle}/follow", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -73,14 +73,12 @@ public class FollowChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task FollowChannel_OwnChannel_Returns409WithExpectedCode()
     {
-        var accessToken = await SignUpAndGetAccessToken();
+        var (accessToken, username) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var createResponse = await _client.PostAsJsonAsync("/v1/channels", new { name = "My Channel" });
-        var createBody = await createResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = createBody.GetProperty("data").GetProperty("channelId").GetString();
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
 
-        var response = await _client.PostAsync($"/v1/channels/{channelId}/follow", null);
+        var response = await _client.PostAsync($"/v1/users/{username}/channels/test-channel/follow", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
 
@@ -89,44 +87,41 @@ public class FollowChannelTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task FollowChannel_WithNonExistentId_Returns404()
+    public async Task FollowChannel_WithNonExistentHandle_Returns404()
     {
-        var followerToken = await SignUpAndGetAccessToken();
+        var (ownerUsername, _) = await CreateChannelAsNewUser();
+        var (followerToken, _) = await SignUpAndGetCredentials();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", followerToken);
 
-        var response = await _client.PostAsync($"/v1/channels/{Guid.NewGuid()}/follow", null);
+        var response = await _client.PostAsync($"/v1/users/{ownerUsername}/channels/nonexistent/follow", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
-    private async Task<string> SignUpAndGetAccessToken()
+    private async Task<(string AccessToken, string Username)> SignUpAndGetCredentials()
     {
+        var username = $"usr{Guid.NewGuid():N}"[..15];
         var email = $"user_{Guid.NewGuid():N}@example.com";
         var password = "StrongPass1!";
 
-        await _client.PostAsJsonAsync("/v1/auth/signup", new
-        {
-            username = $"usr{Guid.NewGuid():N}"[..15],
-            email,
-            password
-        });
+        await _client.PostAsJsonAsync("/v1/auth/signup", new { username, email, password });
 
         var signInResponse = await _client.PostAsJsonAsync("/v1/auth/signin", new { email, password });
         var body = await signInResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        return body.GetProperty("data").GetProperty("accessToken").GetString()!;
+        var accessToken = body.GetProperty("data").GetProperty("accessToken").GetString()!;
+
+        return (accessToken, username);
     }
 
-    private async Task<string> CreateChannelAsNewUser()
+    private async Task<(string OwnerUsername, string ChannelHandle)> CreateChannelAsNewUser()
     {
-        var accessToken = await SignUpAndGetAccessToken();
+        var (accessToken, username) = await SignUpAndGetCredentials();
         var previousAuth = _client.DefaultRequestHeaders.Authorization;
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var response = await _client.PostAsJsonAsync("/v1/channels", new { name = "A Channel" });
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = body.GetProperty("data").GetProperty("channelId").GetString()!;
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "a-channel", name = "A Channel" });
 
         _client.DefaultRequestHeaders.Authorization = previousAuth;
-        return channelId;
+        return (username, "a-channel");
     }
 }
