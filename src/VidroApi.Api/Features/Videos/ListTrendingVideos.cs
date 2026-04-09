@@ -36,8 +36,10 @@ public static class ListTrendingVideos
         {
             public Guid VideoId { get; init; }
             public Guid ChannelId { get; init; }
+            public string ChannelHandle { get; init; } = null!;
             public string ChannelName { get; init; } = null!;
             public string? ChannelAvatarUrl { get; init; }
+            public string OwnerUsername { get; init; } = null!;
             public string Title { get; init; } = null!;
             public string? Description { get; init; }
             public List<string> Tags { get; init; } = [];
@@ -102,8 +104,10 @@ public static class ListTrendingVideos
             {
                 VideoId = video.Id,
                 ChannelId = video.ChannelId,
+                ChannelHandle = video.Channel.Handle,
                 ChannelName = video.Channel.Name,
                 ChannelAvatarUrl = avatarUrl,
+                OwnerUsername = video.Channel.User.Username,
                 Title = video.Title,
                 Description = video.Description,
                 Tags = video.Tags,
@@ -131,7 +135,7 @@ public static class ListTrendingVideos
             
             return db.Videos
                 .FromSqlInterpolated(sql)
-                .Include(v => v.Channel)
+                .Include(v => v.Channel).ThenInclude(c => c.User)
                 .Include(v => v.Artifacts)
                 .Take(limit)
                 .AsNoTracking()

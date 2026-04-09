@@ -42,6 +42,8 @@ public static class ListChannelVideos
         public record VideoSummary
         {
             public Guid VideoId { get; init; }
+            public string ChannelHandle { get; init; } = null!;
+            public string OwnerUsername { get; init; } = null!;
             public string Title { get; init; } = null!;
             public string? Description { get; init; }
             public List<string> Tags { get; init; } = [];
@@ -85,7 +87,9 @@ public static class ListChannelVideos
 
         public async ValueTask<Result<Response, Error>> Handle(Command cmd, CancellationToken ct)
         {
-            var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == cmd.ChannelId, ct);
+            var channel = await db.Channels
+                .Include(c => c.User)
+                .FirstOrDefaultAsync(c => c.Id == cmd.ChannelId, ct);
             if (channel is null)
                 return CommonErrors.NotFound(nameof(Domain.Entities.Channel), cmd.ChannelId);
 
@@ -94,7 +98,7 @@ public static class ListChannelVideos
 
             var thumbnailUrlLists = await GetThumbnails(videos);
             var channelAvatarUrl = await GenerateAvatarUrl(channel.AvatarPath);
-            var summaries = videos.Select((v, i) => MapToSummary(v, thumbnailUrlLists[i], channelAvatarUrl)).ToList();
+            var summaries = videos.Select((v, i) => MapToSummary(v, thumbnailUrlLists[i], channel.Handle, channel.User.Username, channelAvatarUrl)).ToList();
 
             var nextCursor = videos.Count == cmd.Limit
                 ? videos[^1].CreatedAt
@@ -107,11 +111,13 @@ public static class ListChannelVideos
             };
         }
 
-        private static Response.VideoSummary MapToSummary(Domain.Entities.Video video, List<string> thumbnailUrls, string? channelAvatarUrl)
+        private static Response.VideoSummary MapToSummary(Domain.Entities.Video video, List<string> thumbnailUrls, string channelHandle, string ownerUsername, string? channelAvatarUrl)
         {
             return new Response.VideoSummary
             {
                 VideoId = video.Id,
+                ChannelHandle = channelHandle,
+                OwnerUsername = ownerUsername,
                 Title = video.Title,
                 Description = video.Description,
                 Tags = video.Tags,
