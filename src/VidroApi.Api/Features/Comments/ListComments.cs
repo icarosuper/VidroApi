@@ -4,6 +4,7 @@ using FluentValidation;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using VidroApi.Api.Common;
 using VidroApi.Api.Extensions;
 using VidroApi.Domain.Entities;
 using VidroApi.Domain.Enums;
@@ -41,6 +42,7 @@ public static class ListComments
             public int LikeCount { get; init; }
             public int DislikeCount { get; init; }
             public int ReplyCount { get; init; }
+            public EnumValue? UserReaction { get; init; }
             public DateTimeOffset CreatedAt { get; init; }
             public DateTimeOffset? UpdatedAt { get; init; }
         }
@@ -100,14 +102,14 @@ public static class ListComments
 
             if (cmd.Sort == CommentSortOrder.Popular)
             {
-                var popularComments = await FetchPopularComments(cmd.VideoId, cmd.Limit, ct);
+                var popularComments = await FetchPopularComments(cmd.VideoId, cmd.RequestingUserId, cmd.Limit, ct);
                 return new Response
                 {
                     Comments = popularComments
                 };
             }
 
-            var recentComments = await FetchRecentComments(cmd.VideoId, cmd.Cursor, cmd.Limit, ct);
+            var recentComments = await FetchRecentComments(cmd.VideoId, cmd.RequestingUserId, cmd.Cursor, cmd.Limit, ct);
 
             var nextCursor = recentComments.Count == cmd.Limit
                 ? recentComments[^1].CreatedAt
@@ -130,7 +132,7 @@ public static class ListComments
         }
 
         private Task<List<Response.CommentSummary>> FetchRecentComments(
-            Guid videoId, DateTimeOffset? cursor, int limit, CancellationToken ct)
+            Guid videoId, Guid? requestingUserId, DateTimeOffset? cursor, int limit, CancellationToken ct)
         {
             var query = db.Comments.Where(c => c.VideoId == videoId && c.ParentCommentId == null);
 
@@ -140,35 +142,52 @@ public static class ListComments
             return query
                 .OrderByDescending(c => c.CreatedAt)
                 .Take(limit)
-                .Select(CommentSummaryProjection)
+                .Select(c => new Response.CommentSummary
+                {
+                    CommentId = c.Id,
+                    UserId = c.UserId,
+                    Username = c.User.Username,
+                    Content = c.IsDeleted ? null : c.Content,
+                    IsDeleted = c.IsDeleted,
+                    LikeCount = c.LikeCount,
+                    DislikeCount = c.DislikeCount,
+                    ReplyCount = c.ReplyCount,
+                    UserReaction = db.CommentReactions
+                        .Where(cr => cr.CommentId == c.Id && cr.UserId == requestingUserId)
+                        .Select(cr => new EnumValue { Id = (int)cr.Type, Value = cr.Type.ToString() })
+                        .FirstOrDefault(),
+                    CreatedAt = c.CreatedAt,
+                    UpdatedAt = c.UpdatedAt
+                })
                 .ToListAsync(ct);
         }
 
         private Task<List<Response.CommentSummary>> FetchPopularComments(
-            Guid videoId, int limit, CancellationToken ct)
+            Guid videoId, Guid? requestingUserId, int limit, CancellationToken ct)
         {
             return db.Comments
                 .Where(c => c.VideoId == videoId && c.ParentCommentId == null)
                 .OrderByDescending(c => c.LikeCount)
                 .ThenByDescending(c => c.CreatedAt)
                 .Take(limit)
-                .Select(CommentSummaryProjection)
+                .Select(c => new Response.CommentSummary
+                {
+                    CommentId = c.Id,
+                    UserId = c.UserId,
+                    Username = c.User.Username,
+                    Content = c.IsDeleted ? null : c.Content,
+                    IsDeleted = c.IsDeleted,
+                    LikeCount = c.LikeCount,
+                    DislikeCount = c.DislikeCount,
+                    ReplyCount = c.ReplyCount,
+                    UserReaction = db.CommentReactions
+                        .Where(cr => cr.CommentId == c.Id && cr.UserId == requestingUserId)
+                        .Select(cr => new EnumValue { Id = (int)cr.Type, Value = cr.Type.ToString() })
+                        .FirstOrDefault(),
+                    CreatedAt = c.CreatedAt,
+                    UpdatedAt = c.UpdatedAt
+                })
                 .ToListAsync(ct);
         }
-
-        private static readonly System.Linq.Expressions.Expression<Func<Comment, Response.CommentSummary>>
-            CommentSummaryProjection = c => new Response.CommentSummary
-            {
-                CommentId = c.Id,
-                UserId = c.UserId,
-                Username = c.User.Username,
-                Content = c.IsDeleted ? null : c.Content,
-                IsDeleted = c.IsDeleted,
-                LikeCount = c.LikeCount,
-                DislikeCount = c.DislikeCount,
-                ReplyCount = c.ReplyCount,
-                CreatedAt = c.CreatedAt,
-                UpdatedAt = c.UpdatedAt
-            };
     }
 }
