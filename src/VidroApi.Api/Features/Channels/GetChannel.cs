@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using CSharpFunctionalExtensions;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +18,7 @@ public static class GetChannel
     {
         public string Username { get; init; } = null!;
         public string Handle { get; init; } = null!;
+        public Guid? RequestingUserId { get; init; }
     }
 
     public record Response
@@ -26,6 +28,7 @@ public static class GetChannel
         public string Name { get; init; } = null!;
         public string? Description { get; init; }
         public int FollowerCount { get; init; }
+        public bool IsFollowing { get; init; }
         public Guid OwnerId { get; init; }
         public string OwnerUsername { get; init; } = null!;
         public string? AvatarUrl { get; init; }
@@ -36,10 +39,14 @@ public static class GetChannel
         app.MapGet("/v1/users/{username}/channels/{handle}", async (
             string username,
             string handle,
+            ClaimsPrincipal user,
             IMediator mediator,
             CancellationToken ct) =>
         {
-            var cmd = new Command { Username = username, Handle = handle };
+            Guid? requestingUserId = user.Identity?.IsAuthenticated == true
+                ? user.GetUserId()
+                : null;
+            var cmd = new Command { Username = username, Handle = handle, RequestingUserId = requestingUserId };
             var result = await mediator.Send(cmd, ct);
             return result.ToApiResult(StatusCodes.Status200OK);
         });
@@ -61,6 +68,7 @@ public static class GetChannel
             if (channel is null)
                 return CommonErrors.NotFound(nameof(Channel), $"{cmd.Username}/{cmd.Handle}");
 
+            var isFollowing = await CheckIfFollowing(channel.Id, cmd.RequestingUserId, ct);
             var avatarUrl = await GenerateAvatarUrl(channel.AvatarPath);
             var ownerAvatarUrl = await GenerateAvatarUrl(channel.User.AvatarPath);
 
@@ -71,11 +79,20 @@ public static class GetChannel
                 Name = channel.Name,
                 Description = channel.Description,
                 FollowerCount = channel.FollowerCount,
+                IsFollowing = isFollowing,
                 OwnerId = channel.UserId,
                 OwnerUsername = channel.User.Username,
                 AvatarUrl = avatarUrl,
                 OwnerAvatarUrl = ownerAvatarUrl
             };
+        }
+
+        private Task<bool> CheckIfFollowing(Guid channelId, Guid? requestingUserId, CancellationToken ct)
+        {
+            if (requestingUserId is null)
+                return Task.FromResult(false);
+
+            return db.ChannelFollowers.AnyAsync(f => f.ChannelId == channelId && f.UserId == requestingUserId, ct);
         }
 
         private async Task<string?> GenerateAvatarUrl(string? path)
