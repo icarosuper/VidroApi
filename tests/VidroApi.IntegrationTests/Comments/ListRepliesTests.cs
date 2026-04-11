@@ -33,9 +33,9 @@ public class ListRepliesTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ListReplies_InvalidLimit_Returns400()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
         var viewerToken = await SignUpAndGetAccessToken();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
         var commentId = await AddCommentAsync(viewerToken, videoId, "Parent comment");
 
         var response = await _client.GetAsync($"/v1/comments/{commentId}/replies?limit=9999");
@@ -46,9 +46,9 @@ public class ListRepliesTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ListReplies_ValidRequest_Returns200WithReplies()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
         var viewerToken = await SignUpAndGetAccessToken();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
 
         var parentId = await AddCommentAsync(viewerToken, videoId, "Parent comment");
         await AddCommentAsync(viewerToken, videoId, "First reply", parentId);
@@ -67,9 +67,9 @@ public class ListRepliesTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ListReplies_WithCursor_ReturnsPaginatedResults()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
         var viewerToken = await SignUpAndGetAccessToken();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
 
         var parentId = await AddCommentAsync(viewerToken, videoId, "Parent comment");
         await AddCommentAsync(viewerToken, videoId, "Reply 1", parentId);
@@ -94,9 +94,9 @@ public class ListRepliesTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ListReplies_EmptyList_Returns200WithEmptyArray()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
         var viewerToken = await SignUpAndGetAccessToken();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
 
         var parentId = await AddCommentAsync(viewerToken, videoId, "Parent comment with no replies");
 
@@ -119,11 +119,11 @@ public class ListRepliesTests(ApiFactory factory) : IClassFixture<ApiFactory>
         return Guid.Parse(responseBody.GetProperty("data").GetProperty("commentId").GetString()!);
     }
 
-    private async Task<Guid> CreateReadyVideoAsync(string accessToken, Guid channelId)
+    private async Task<Guid> CreateReadyVideoAsync(string accessToken, string username, string channelHandle)
     {
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var createResponse = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var createResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title = "Test Video",
             tags = Array.Empty<string>(),
@@ -184,7 +184,7 @@ public class ListRepliesTests(ApiFactory factory) : IClassFixture<ApiFactory>
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    private async Task<(string AccessToken, Guid ChannelId)> CreateChannelAndGetIds()
+    private async Task<(string AccessToken, string Username, string ChannelHandle)> CreateChannelAndGetIds()
     {
         var username = $"usr{Guid.NewGuid():N}"[..15];
         var email = $"user_{Guid.NewGuid():N}@example.com";
@@ -198,11 +198,9 @@ public class ListRepliesTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
-        var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
 
-        return (accessToken, channelId);
+        return (accessToken, username, "test-channel");
     }
 
     private async Task<string> SignUpAndGetAccessToken()

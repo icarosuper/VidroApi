@@ -23,9 +23,9 @@ public class RemoveVideoFromPlaylistTests(ApiFactory factory) : IClassFixture<Ap
     [Fact]
     public async Task RemoveVideoFromPlaylist_ValidItem_Returns204()
     {
-        var (token, channelId) = await CreateChannelAndGetIds();
+        var (token, username, channelHandle) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        var videoId = await CreateReadyVideo(channelId);
+        var videoId = await CreateReadyVideo(username, channelHandle);
         var playlistId = await CreatePlaylist("My Playlist");
 
         await _client.PostAsJsonAsync($"/v1/playlists/{playlistId}/items", new { videoId });
@@ -37,9 +37,9 @@ public class RemoveVideoFromPlaylistTests(ApiFactory factory) : IClassFixture<Ap
     [Fact]
     public async Task RemoveVideoFromPlaylist_VideoCount_Decrements()
     {
-        var (token, channelId) = await CreateChannelAndGetIds();
+        var (token, username, channelHandle) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        var videoId = await CreateReadyVideo(channelId);
+        var videoId = await CreateReadyVideo(username, channelHandle);
         var playlistId = await CreatePlaylist("My Playlist");
 
         await _client.PostAsJsonAsync($"/v1/playlists/{playlistId}/items", new { videoId });
@@ -80,7 +80,7 @@ public class RemoveVideoFromPlaylistTests(ApiFactory factory) : IClassFixture<Ap
     [Fact]
     public async Task RemoveVideoFromPlaylist_WhenNotOwner_Returns403()
     {
-        var (ownerToken, _) = await CreateChannelAndGetIds();
+        var (ownerToken, _, _) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
         var playlistId = await CreatePlaylist("Owner Playlist");
 
@@ -112,9 +112,9 @@ public class RemoveVideoFromPlaylistTests(ApiFactory factory) : IClassFixture<Ap
         return Guid.Parse(body.GetProperty("data").GetProperty("playlistId").GetString()!);
     }
 
-    private async Task<Guid> CreateReadyVideo(Guid channelId)
+    private async Task<Guid> CreateReadyVideo(string username, string channelHandle)
     {
-        var createResponse = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var createResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title = "Test Video",
             tags = Array.Empty<string>(),
@@ -175,7 +175,7 @@ public class RemoveVideoFromPlaylistTests(ApiFactory factory) : IClassFixture<Ap
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    private async Task<(string Token, Guid ChannelId)> CreateChannelAndGetIds()
+    private async Task<(string Token, string Username, string ChannelHandle)> CreateChannelAndGetIds()
     {
         var username = $"usr{Guid.NewGuid():N}"[..15];
         var email = $"user_{Guid.NewGuid():N}@example.com";
@@ -189,11 +189,9 @@ public class RemoveVideoFromPlaylistTests(ApiFactory factory) : IClassFixture<Ap
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
-        var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
 
-        return (token, channelId);
+        return (token, username, "test-channel");
     }
 
     private async Task<string> SignUpAndGetAccessToken()

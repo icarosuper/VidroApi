@@ -48,9 +48,9 @@ public class ReactToCommentTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ReactToComment_Like_Returns204AndIncrementsLikeCount()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
         var viewerToken = await SignUpAndGetAccessToken();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
         var commentId = await AddCommentAsync(viewerToken, videoId, "A comment");
 
         var anotherToken = await SignUpAndGetAccessToken();
@@ -66,9 +66,9 @@ public class ReactToCommentTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ReactToComment_Dislike_Returns204AndIncrementsDislikeCount()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
         var viewerToken = await SignUpAndGetAccessToken();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
         var commentId = await AddCommentAsync(viewerToken, videoId, "A comment");
 
         var anotherToken = await SignUpAndGetAccessToken();
@@ -84,9 +84,9 @@ public class ReactToCommentTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ReactToComment_SameReactionTwice_DoesNotDuplicateCount()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
         var viewerToken = await SignUpAndGetAccessToken();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
         var commentId = await AddCommentAsync(viewerToken, videoId, "A comment");
 
         var anotherToken = await SignUpAndGetAccessToken();
@@ -103,9 +103,9 @@ public class ReactToCommentTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ReactToComment_ChangeReactionType_SwapsCounters()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
         var viewerToken = await SignUpAndGetAccessToken();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
         var commentId = await AddCommentAsync(viewerToken, videoId, "A comment");
 
         var anotherToken = await SignUpAndGetAccessToken();
@@ -150,11 +150,11 @@ public class ReactToCommentTests(ApiFactory factory) : IClassFixture<ApiFactory>
         return Guid.Parse(body.GetProperty("data").GetProperty("commentId").GetString()!);
     }
 
-    private async Task<Guid> CreateReadyVideoAsync(string accessToken, Guid channelId)
+    private async Task<Guid> CreateReadyVideoAsync(string accessToken, string username, string channelHandle)
     {
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var createResponse = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var createResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title = "Test Video",
             tags = Array.Empty<string>(),
@@ -215,7 +215,7 @@ public class ReactToCommentTests(ApiFactory factory) : IClassFixture<ApiFactory>
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    private async Task<(string AccessToken, Guid ChannelId)> CreateChannelAndGetIds()
+    private async Task<(string AccessToken, string Username, string ChannelHandle)> CreateChannelAndGetIds()
     {
         var username = $"usr{Guid.NewGuid():N}"[..15];
         var email = $"user_{Guid.NewGuid():N}@example.com";
@@ -229,11 +229,9 @@ public class ReactToCommentTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
-        var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
 
-        return (accessToken, channelId);
+        return (accessToken, username, "test-channel");
     }
 
     private async Task<string> SignUpAndGetAccessToken()

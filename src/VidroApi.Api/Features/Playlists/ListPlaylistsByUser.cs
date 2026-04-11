@@ -15,7 +15,7 @@ public static class ListPlaylistsByUser
 {
     public record Query : IRequest<Result<PagedResult<PlaylistResponse>, Error>>
     {
-        public Guid UserId { get; init; }
+        public string Username { get; init; } = null!;
         public Guid? RequestingUserId { get; init; }
         public string? Cursor { get; init; }
         public int Limit { get; init; } = 20;
@@ -32,8 +32,8 @@ public static class ListPlaylistsByUser
     }
 
     public static void MapEndpoint(IEndpointRouteBuilder app) =>
-        app.MapGet("/v1/users/{userId:guid}/playlists", async (
-            Guid userId,
+        app.MapGet("/v1/users/{username}/playlists", async (
+            string username,
             string? cursor,
             int limit,
             ClaimsPrincipal user,
@@ -46,7 +46,7 @@ public static class ListPlaylistsByUser
 
             var query = new Query
             {
-                UserId = userId,
+                Username = username,
                 RequestingUserId = requestingUserId,
                 Cursor = cursor,
                 Limit = Math.Max(1, Math.Min(limit, 100))
@@ -88,10 +88,14 @@ public static class ListPlaylistsByUser
 
         private async Task<List<Domain.Entities.Playlist>> FetchPlaylists(Query query, CancellationToken ct)
         {
-            var isUserOwner = query.RequestingUserId == query.UserId;
+            var targetUser = await db.Users.FirstOrDefaultAsync(u => u.Username == query.Username, ct);
+            if (targetUser is null)
+                return [];
+
+            var isUserOwner = query.RequestingUserId == targetUser.Id;
 
             var dbQuery = db.Playlists
-                .Where(p => p.UserId == query.UserId && p.Scope == PlaylistScope.User);
+                .Where(p => p.UserId == targetUser.Id && p.Scope == PlaylistScope.User);
 
             if (!isUserOwner)
             {

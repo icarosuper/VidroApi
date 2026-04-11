@@ -22,7 +22,7 @@ public class DeleteVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task DeleteVideo_AsOwner_Returns204()
     {
-        var (accessToken, _, videoId) = await CreateReadyVideo();
+        var (accessToken, videoId) = await CreateReadyVideo();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         var response = await _client.DeleteAsync($"/v1/videos/{videoId}");
@@ -33,7 +33,7 @@ public class DeleteVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task DeleteVideo_VideoNoLongerAccessibleAfterDeletion()
     {
-        var (accessToken, _, videoId) = await CreateReadyVideo();
+        var (accessToken, videoId) = await CreateReadyVideo();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         await _client.DeleteAsync($"/v1/videos/{videoId}");
@@ -45,7 +45,7 @@ public class DeleteVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task DeleteVideo_WithoutAuthentication_Returns401()
     {
-        var (_, _, videoId) = await CreateReadyVideo();
+        var (_, videoId) = await CreateReadyVideo();
         _client.DefaultRequestHeaders.Authorization = null;
 
         var response = await _client.DeleteAsync($"/v1/videos/{videoId}");
@@ -56,7 +56,7 @@ public class DeleteVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task DeleteVideo_AsNonOwner_Returns403()
     {
-        var (_, _, videoId) = await CreateReadyVideo();
+        var (_, videoId) = await CreateReadyVideo();
 
         var otherToken = await SignUpAndGetAccessToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", otherToken);
@@ -69,7 +69,7 @@ public class DeleteVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task DeleteVideo_PrivateVideo_AsNonOwner_Returns404()
     {
-        var (_, _, videoId) = await CreateReadyVideo(visibility: 2); // Private
+        var (_, videoId) = await CreateReadyVideo(visibility: 2); // Private
 
         var otherToken = await SignUpAndGetAccessToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", otherToken);
@@ -90,12 +90,12 @@ public class DeleteVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
-    private async Task<(string AccessToken, Guid ChannelId, Guid VideoId)> CreateReadyVideo(int visibility = 0)
+    private async Task<(string AccessToken, Guid VideoId)> CreateReadyVideo(int visibility = 0)
     {
-        var (accessToken, channelId) = await CreateChannelAndGetIds();
+        var (accessToken, username, channelHandle) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var createResponse = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var createResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title = "Video to Delete",
             tags = Array.Empty<string>(),
@@ -106,7 +106,7 @@ public class DeleteVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         await SimulateProcessingCompletedAsync(videoId);
 
-        return (accessToken, channelId, videoId);
+        return (accessToken, videoId);
     }
 
     private async Task SimulateProcessingCompletedAsync(Guid videoId)
@@ -158,7 +158,7 @@ public class DeleteVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    private async Task<(string AccessToken, Guid ChannelId)> CreateChannelAndGetIds()
+    private async Task<(string AccessToken, string Username, string ChannelHandle)> CreateChannelAndGetIds()
     {
         var username = $"usr{Guid.NewGuid():N}"[..15];
         var email = $"user_{Guid.NewGuid():N}@example.com";
@@ -172,11 +172,9 @@ public class DeleteVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
-        var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
 
-        return (accessToken, channelId);
+        return (accessToken, username, "test-channel");
     }
 
     private async Task<string> SignUpAndGetAccessToken()

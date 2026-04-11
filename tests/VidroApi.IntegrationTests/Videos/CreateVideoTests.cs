@@ -19,10 +19,10 @@ public class CreateVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task CreateVideo_WithValidData_Returns201WithUploadUrl()
     {
-        var (accessToken, channelId) = await CreateChannelAndGetIds();
+        var (accessToken, username, channelHandle) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var response = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var response = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title = "My First Video",
             description = "An awesome video",
@@ -42,9 +42,7 @@ public class CreateVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task CreateVideo_WithoutAuthentication_Returns401()
     {
-        var channelId = Guid.NewGuid();
-
-        var response = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var response = await _client.PostAsJsonAsync("/v1/users/nonexistent/channels/nonexistent/videos", new
         {
             title = "My Video",
             tags = Array.Empty<string>(),
@@ -57,12 +55,12 @@ public class CreateVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task CreateVideo_OnChannelNotOwned_Returns403()
     {
-        var (_, channelId) = await CreateChannelAndGetIds();
+        var (_, username, channelHandle) = await CreateChannelAndGetIds();
         var token2 = await SignUpAndGetAccessToken();
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token2);
 
-        var response = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var response = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title = "My Video",
             tags = Array.Empty<string>(),
@@ -78,7 +76,7 @@ public class CreateVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var accessToken = await SignUpAndGetAccessToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var response = await _client.PostAsJsonAsync($"/v1/channels/{Guid.NewGuid()}/videos", new
+        var response = await _client.PostAsJsonAsync("/v1/users/nonexistent/channels/nonexistent/videos", new
         {
             title = "My Video",
             tags = Array.Empty<string>(),
@@ -91,10 +89,10 @@ public class CreateVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task CreateVideo_WithEmptyTitle_Returns400()
     {
-        var (accessToken, channelId) = await CreateChannelAndGetIds();
+        var (accessToken, username, channelHandle) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var response = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var response = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title = "",
             tags = Array.Empty<string>(),
@@ -107,10 +105,10 @@ public class CreateVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task CreateVideo_WithTitleTooLong_Returns400()
     {
-        var (accessToken, channelId) = await CreateChannelAndGetIds();
+        var (accessToken, username, channelHandle) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var response = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var response = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title = new string('a', 201),
             tags = Array.Empty<string>(),
@@ -123,10 +121,10 @@ public class CreateVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task CreateVideo_WithTooManyTags_Returns400()
     {
-        var (accessToken, channelId) = await CreateChannelAndGetIds();
+        var (accessToken, username, channelHandle) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var response = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var response = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title = "My Video",
             tags = Enumerable.Range(1, 11).Select(i => $"tag{i}").ToArray(),
@@ -136,7 +134,7 @@ public class CreateVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
-    private async Task<(string AccessToken, Guid ChannelId)> CreateChannelAndGetIds()
+    private async Task<(string AccessToken, string Username, string ChannelHandle)> CreateChannelAndGetIds()
     {
         var username = $"usr{Guid.NewGuid():N}"[..15];
         var email = $"user_{Guid.NewGuid():N}@example.com";
@@ -150,11 +148,9 @@ public class CreateVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
-        var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
 
-        return (accessToken, channelId);
+        return (accessToken, username, "test-channel");
     }
 
     private async Task<string> SignUpAndGetAccessToken()

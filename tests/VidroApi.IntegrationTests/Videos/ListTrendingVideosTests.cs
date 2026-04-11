@@ -41,13 +41,13 @@ public class ListTrendingVideosTests(ApiFactory factory) : IClassFixture<ApiFact
     [Fact]
     public async Task ListTrendingVideos_ReturnsOnlyReadyPublicVideos()
     {
-        var (accessToken, channelId) = await CreateChannelAndGetIds();
+        var (accessToken, username, channelHandle) = await CreateChannelAndGetIds();
 
-        await CreateReadyVideoAsync(accessToken, channelId, "Ready Public Video", visibility: 0);
+        await CreateReadyVideoAsync(accessToken, username, channelHandle, "Ready Public Video", visibility: 0);
 
         // Pending upload — not Ready
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title = "Pending Video",
             tags = Array.Empty<string>(),
@@ -55,7 +55,7 @@ public class ListTrendingVideosTests(ApiFactory factory) : IClassFixture<ApiFact
         });
 
         // Private ready video
-        await CreateReadyVideoAsync(accessToken, channelId, "Private Video", visibility: 2);
+        await CreateReadyVideoAsync(accessToken, username, channelHandle, "Private Video", visibility: 2);
 
         var response = await _client.GetAsync("/v1/videos/trending?limit=10");
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
@@ -73,8 +73,8 @@ public class ListTrendingVideosTests(ApiFactory factory) : IClassFixture<ApiFact
     [Fact]
     public async Task ListTrendingVideos_ReturnsThumbnailUrls()
     {
-        var (accessToken, channelId) = await CreateChannelAndGetIds();
-        await CreateReadyVideoAsync(accessToken, channelId, "Video With Thumbnail");
+        var (accessToken, username, channelHandle) = await CreateChannelAndGetIds();
+        await CreateReadyVideoAsync(accessToken, username, channelHandle, "Video With Thumbnail");
 
         var response = await _client.GetAsync("/v1/videos/trending?limit=10");
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
@@ -88,21 +88,21 @@ public class ListTrendingVideosTests(ApiFactory factory) : IClassFixture<ApiFact
     [Fact]
     public async Task ListTrendingVideos_RespectsLimitParameter()
     {
-        var (accessToken, channelId) = await CreateChannelAndGetIds();
+        var (accessToken, username, channelHandle) = await CreateChannelAndGetIds();
 
         for (var i = 0; i < 3; i++)
-            await CreateReadyVideoAsync(accessToken, channelId, $"Video {i}");
+            await CreateReadyVideoAsync(accessToken, username, channelHandle, $"Video {i}");
 
         var response = await _client.GetAsync("/v1/videos/trending?limit=2");
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         body.GetProperty("data").GetProperty("videos").GetArrayLength().Should().Be(2);
     }
 
-    private async Task<Guid> CreateReadyVideoAsync(string accessToken, Guid channelId, string title, int visibility = 0)
+    private async Task<Guid> CreateReadyVideoAsync(string accessToken, string username, string channelHandle, string title, int visibility = 0)
     {
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var createResponse = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var createResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title,
             tags = Array.Empty<string>(),
@@ -163,7 +163,7 @@ public class ListTrendingVideosTests(ApiFactory factory) : IClassFixture<ApiFact
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    private async Task<(string AccessToken, Guid ChannelId)> CreateChannelAndGetIds()
+    private async Task<(string AccessToken, string Username, string ChannelHandle)> CreateChannelAndGetIds()
     {
         var username = $"usr{Guid.NewGuid():N}"[..15];
         var email = $"user_{Guid.NewGuid():N}@example.com";
@@ -177,11 +177,9 @@ public class ListTrendingVideosTests(ApiFactory factory) : IClassFixture<ApiFact
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
-        var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
 
-        return (accessToken, channelId);
+        return (accessToken, username, "test-channel");
     }
 
     private async Task<string> SignUpAndGetAccessToken()

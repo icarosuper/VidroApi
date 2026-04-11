@@ -35,7 +35,7 @@ public class WebhookTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task MinioUploadCompleted_MovesVideoToProcessing()
     {
-        var (accessToken, _, videoId) = await CreateChannelAndPendingVideo();
+        var (accessToken, videoId) = await CreateChannelAndPendingVideo();
         await SendMinioWebhook(videoId);
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -107,7 +107,7 @@ public class WebhookTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task VideoProcessed_FailedProcessing_VideoBecomesFailed()
     {
-        var (accessToken, _, videoId) = await CreateChannelAndPendingVideo();
+        var (accessToken, videoId) = await CreateChannelAndPendingVideo();
         await SendMinioWebhook(videoId);
         await SendVideoProcessedWebhook(videoId, success: false);
 
@@ -152,16 +152,16 @@ public class WebhookTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
     private async Task<Guid> CreatePendingVideo()
     {
-        var (_, _, videoId) = await CreateChannelAndPendingVideo();
+        var (_, videoId) = await CreateChannelAndPendingVideo();
         return videoId;
     }
 
-    private async Task<(string AccessToken, Guid ChannelId, Guid VideoId)> CreateChannelAndPendingVideo()
+    private async Task<(string AccessToken, Guid VideoId)> CreateChannelAndPendingVideo()
     {
-        var (accessToken, channelId) = await CreateChannelAndGetIds();
+        var (accessToken, username, channelHandle) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var createResponse = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var createResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title = "Test Video",
             tags = Array.Empty<string>(),
@@ -170,7 +170,7 @@ public class WebhookTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var createBody = await createResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var videoId = Guid.Parse(createBody.GetProperty("data").GetProperty("videoId").GetString()!);
 
-        return (accessToken, channelId, videoId);
+        return (accessToken, videoId);
     }
 
     private async Task<HttpResponseMessage> SendMinioWebhook(Guid videoId)
@@ -227,7 +227,7 @@ public class WebhookTests(ApiFactory factory) : IClassFixture<ApiFactory>
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    private async Task<(string AccessToken, Guid ChannelId)> CreateChannelAndGetIds()
+    private async Task<(string AccessToken, string Username, string ChannelHandle)> CreateChannelAndGetIds()
     {
         var username = $"usr{Guid.NewGuid():N}"[..15];
         var email = $"user_{Guid.NewGuid():N}@example.com";
@@ -241,11 +241,9 @@ public class WebhookTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
-        var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
 
-        return (accessToken, channelId);
+        return (accessToken, username, "test-channel");
     }
 
     private async Task<string> SignUpAndGetAccessToken()

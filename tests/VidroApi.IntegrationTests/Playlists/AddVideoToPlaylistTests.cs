@@ -23,9 +23,9 @@ public class AddVideoToPlaylistTests(ApiFactory factory) : IClassFixture<ApiFact
     [Fact]
     public async Task AddVideoToPlaylist_ValidVideo_Returns204()
     {
-        var (token, channelId, _) = await CreateChannelAndGetIds();
+        var (token, _, username, channelHandle) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        var videoId = await CreateReadyVideo(channelId);
+        var videoId = await CreateReadyVideo(username, channelHandle);
         var playlistId = await CreatePlaylist("My Playlist");
 
         var response = await _client.PostAsJsonAsync($"/v1/playlists/{playlistId}/items", new { videoId });
@@ -36,9 +36,9 @@ public class AddVideoToPlaylistTests(ApiFactory factory) : IClassFixture<ApiFact
     [Fact]
     public async Task AddVideoToPlaylist_VideoCount_Increments()
     {
-        var (token, channelId, _) = await CreateChannelAndGetIds();
+        var (token, _, username, channelHandle) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        var videoId = await CreateReadyVideo(channelId);
+        var videoId = await CreateReadyVideo(username, channelHandle);
         var playlistId = await CreatePlaylist("My Playlist");
 
         await _client.PostAsJsonAsync($"/v1/playlists/{playlistId}/items", new { videoId });
@@ -52,9 +52,9 @@ public class AddVideoToPlaylistTests(ApiFactory factory) : IClassFixture<ApiFact
     [Fact]
     public async Task AddVideoToPlaylist_VideoAlreadyInPlaylist_Returns409WithExpectedCode()
     {
-        var (token, channelId, _) = await CreateChannelAndGetIds();
+        var (token, _, username, channelHandle) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        var videoId = await CreateReadyVideo(channelId);
+        var videoId = await CreateReadyVideo(username, channelHandle);
         var playlistId = await CreatePlaylist("My Playlist");
 
         await _client.PostAsJsonAsync($"/v1/playlists/{playlistId}/items", new { videoId });
@@ -69,13 +69,11 @@ public class AddVideoToPlaylistTests(ApiFactory factory) : IClassFixture<ApiFact
     [Fact]
     public async Task AddVideoToPlaylist_ChannelScopeVideoFromOtherChannel_Returns400WithExpectedCode()
     {
-        var (token, channelId, username) = await CreateChannelAndGetIds();
+        var (token, channelId, username, _) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var otherChannelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "other-channel", name = "Other Channel" });
-        var otherChannelBody = await otherChannelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var otherChannelId = Guid.Parse(otherChannelBody.GetProperty("data").GetProperty("channelId").GetString()!);
-        var otherVideoId = await CreateReadyVideo(otherChannelId);
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "other-channel", name = "Other Channel" });
+        var otherVideoId = await CreateReadyVideo(username, "other-channel");
 
         var playlistResponse = await _client.PostAsJsonAsync("/v1/playlists", new
         {
@@ -110,7 +108,7 @@ public class AddVideoToPlaylistTests(ApiFactory factory) : IClassFixture<ApiFact
     [Fact]
     public async Task AddVideoToPlaylist_WhenNotOwner_Returns403()
     {
-        var (ownerToken, _, _) = await CreateChannelAndGetIds();
+        var (ownerToken, _, _, _) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
         var playlistId = await CreatePlaylist("Owner Playlist");
 
@@ -144,9 +142,9 @@ public class AddVideoToPlaylistTests(ApiFactory factory) : IClassFixture<ApiFact
         return Guid.Parse(body.GetProperty("data").GetProperty("playlistId").GetString()!);
     }
 
-    private async Task<Guid> CreateReadyVideo(Guid channelId)
+    private async Task<Guid> CreateReadyVideo(string username, string channelHandle)
     {
-        var createResponse = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var createResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title = "Test Video",
             tags = Array.Empty<string>(),
@@ -207,7 +205,7 @@ public class AddVideoToPlaylistTests(ApiFactory factory) : IClassFixture<ApiFact
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    private async Task<(string Token, Guid ChannelId, string Username)> CreateChannelAndGetIds()
+    private async Task<(string Token, Guid ChannelId, string Username, string ChannelHandle)> CreateChannelAndGetIds()
     {
         var username = $"usr{Guid.NewGuid():N}"[..15];
         var email = $"user_{Guid.NewGuid():N}@example.com";
@@ -225,7 +223,7 @@ public class AddVideoToPlaylistTests(ApiFactory factory) : IClassFixture<ApiFact
         var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
 
-        return (token, channelId, username);
+        return (token, channelId, username, "test-channel");
     }
 
     private async Task<string> SignUpAndGetAccessToken()

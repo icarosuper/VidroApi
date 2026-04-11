@@ -28,7 +28,8 @@ public static class CreateVideo
     public record Command : IRequest<Result<Response, Error>>
     {
         public Guid UserId { get; init; }
-        public Guid ChannelId { get; init; }
+        public string Username { get; init; } = null!;
+        public string ChannelHandle { get; init; } = null!;
         public string Title { get; init; } = null!;
         public string? Description { get; init; }
         public List<string> Tags { get; init; } = [];
@@ -61,8 +62,9 @@ public static class CreateVideo
     }
 
     public static void MapEndpoint(IEndpointRouteBuilder app) =>
-        app.MapPost("/v1/channels/{channelId:guid}/videos", async (
-            Guid channelId,
+        app.MapPost("/v1/users/{username}/channels/{handle}/videos", async (
+            string username,
+            string handle,
             Request req,
             ClaimsPrincipal user,
             IMediator mediator,
@@ -71,7 +73,8 @@ public static class CreateVideo
             var cmd = new Command
             {
                 UserId = user.GetUserId(),
-                ChannelId = channelId,
+                Username = username,
+                ChannelHandle = handle,
                 Title = req.Title,
                 Description = req.Description,
                 Tags = req.Tags,
@@ -91,9 +94,10 @@ public static class CreateVideo
     {
         public async ValueTask<Result<Response, Error>> Handle(Command cmd, CancellationToken ct)
         {
-            var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == cmd.ChannelId, ct);
+            var channel = await db.Channels
+                .FirstOrDefaultAsync(c => c.Handle == cmd.ChannelHandle && c.User.Username == cmd.Username, ct);
             if (channel is null)
-                return CommonErrors.NotFound(nameof(Channel), cmd.ChannelId);
+                return CommonErrors.NotFound(nameof(Channel), $"{cmd.Username}/{cmd.ChannelHandle}");
 
             var isOwner = channel.UserId == cmd.UserId;
             if (!isOwner)
@@ -102,7 +106,7 @@ public static class CreateVideo
             var ttlHours = minioOptions.Value.UploadUrlTtlHours;
             var uploadExpiresAt = clock.UtcNow.AddHours(ttlHours);
 
-            var video = new Video(cmd.ChannelId, cmd.Title, cmd.Description, cmd.Tags,
+            var video = new Video(channel.Id, cmd.Title, cmd.Description, cmd.Tags,
                 cmd.Visibility, uploadExpiresAt, clock.UtcNow);
 
             var objectKey = $"raw/{video.Id}";

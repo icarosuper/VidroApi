@@ -76,6 +76,18 @@
       db.Videos.Include(v => v.Channel).FirstOrDefaultAsync(v => v.Id == id, ct);
   ```
 
+## Route parameter conventions
+
+- **User identity in routes** — always use `user.Username` (a `string`), never `user.Id` (a `Guid`). Route segment: `{username}`.
+- **Channel identity in routes** — always use `channel.Handle` (a `string`), never `channel.Id` (a `Guid`). Route segment: `{handle}`.
+- **Channel routes are always scoped under their user** — `/v1/users/{username}/channels/{handle}/...`. Never expose a flat `/v1/channels/{channelId}/...` route for channel-scoped resources.
+- **Handler lookup pattern** — resolve the channel by `(handle, username)` pair:
+  ```csharp
+  var channel = await db.Channels
+      .FirstOrDefaultAsync(c => c.Handle == query.Handle && c.User.Username == query.Username, ct);
+  ```
+- **Playlist routes** — playlists are user-scoped: `GET /v1/users/{username}/playlists`. Channel playlists add a handle: `GET /v1/users/{username}/channels/{handle}/playlists`.
+
 ## Testing conventions
 
 - **Domain entities must always have unit tests** — placed in `tests/VidroApi.UnitTests/Domain/<EntityName>Tests.cs`.
@@ -83,3 +95,4 @@
 - Integration tests use `ApiFactory` (`WebApplicationFactory<Program>` + Testcontainers PostgreSQL) and exercise the full HTTP stack.
 - Use `IClassFixture<ApiFactory>` to share the container across tests in a class. Generate unique usernames/emails per test (e.g. `Guid.NewGuid()`) to avoid inter-test conflicts.
 - Assert on both HTTP status code and response body (`code` field for errors, `data` for success).
+- **Test helper pattern for channel creation** — `CreateChannelAndGetIds()` returns `(string AccessToken, string Username, string ChannelHandle)`. Video creation helpers take `username` and `channelHandle`, not IDs.
