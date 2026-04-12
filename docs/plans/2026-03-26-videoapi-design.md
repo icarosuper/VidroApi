@@ -8,33 +8,33 @@
 
 ## Visão Geral
 
-API REST para uma plataforma de vídeos similar ao YouTube. Atua como camada de usuários, metadados e orquestração — delega o processamento de vídeo ao serviço **VideoProcessor** (Go) via Redis + MinIO.
+API REST plataforma vídeos (YouTube-like). Camada: usuários, metadados, orquestração — delega processamento ao **VideoProcessor** (Go) via Redis + MinIO.
 
 ### Responsabilidades da API
 
-- Autenticação e gestão de usuários
-- Canais (múltiplos por usuário) e seguidores
-- Upload de vídeos (presigned PUT URL → MinIO)
-- Enfileiramento de jobs de processamento (Redis)
-- Receber callbacks do VideoProcessor (webhook)
-- Servir metadados e URLs de acesso aos artefatos (presigned GET URLs)
-- Comentários, likes/dislikes e feed
+- Autenticação + gestão usuários
+- Canais (múltiplos/usuário) + seguidores
+- Upload vídeos (presigned PUT URL → MinIO)
+- Enfileirar jobs processamento (Redis)
+- Receber callbacks VideoProcessor (webhook)
+- Servir metadados + URLs artefatos (presigned GET URLs)
+- Comentários, likes/dislikes, feed
 
 ---
 
 ## Integração com VideoProcessor
 
-O VideoProcessor (Go) se comunica com a API através de dois mecanismos:
+VideoProcessor (Go) comunica via dois mecanismos:
 
 ### 1. Redis — Publicação de Jobs
 
-A API publica um job chamando `PublishJob(videoId, callbackUrl)`, que:
-- Grava estado inicial `pending` na chave `job:{videoId}` no Redis (TTL: 24h)
-- Empurra o `videoId` na fila `PROCESSING_REQUEST_QUEUE`
+API publica job via `PublishJob(videoId, callbackUrl)`:
+- Grava estado `pending` em `job:{videoId}` no Redis (TTL: 24h)
+- Empurra `videoId` na fila `PROCESSING_REQUEST_QUEUE`
 
 ### 2. Webhook — Notificação de Conclusão
 
-Ao terminar, o VideoProcessor faz `POST {callbackUrl}` com:
+VideoProcessor faz `POST {callbackUrl}` ao terminar:
 ```
 Header: X-Webhook-Signature: sha256={hmac}
 Body: {
@@ -56,7 +56,7 @@ Body: {
 }
 ```
 
-A API valida a assinatura HMAC-SHA256 usando `WEBHOOK_SECRET` (mesma variável configurada no VideoProcessor).
+API valida assinatura HMAC-SHA256 via `WEBHOOK_SECRET` (mesma var do VideoProcessor).
 
 ### 3. MinIO — Armazenamento Compartilhado
 
@@ -78,7 +78,7 @@ A API valida a assinatura HMAC-SHA256 usando `WEBHOOK_SECRET` (mesma variável c
 
 **Clean Architecture + Vertical Slice Architecture**
 
-Cada feature (endpoint, job, handler) é um arquivo autocontido com seu próprio request, response, validador e handler. Despacho via MediatR.
+Cada feature = arquivo autocontido com request, response, validador, handler. Despacho via MediatR.
 
 ```
 VideoApi/
@@ -239,7 +239,7 @@ CREATE INDEX ON Comments (VideoId, CreatedAt DESC);
 
 ### Contadores Desnormalizados
 
-`LikeCount`, `DislikeCount`, `ViewCount` em `Videos` e `FollowerCount` em `Channels` são atualizados atomicamente via `UPDATE ... SET count = count + 1` na mesma transação da operação, evitando `COUNT(*)` em leituras.
+`LikeCount`, `DislikeCount`, `ViewCount` em `Videos` e `FollowerCount` em `Channels` — atualizado atomicamente via `UPDATE ... SET count = count + 1` na mesma transação, evita `COUNT(*)` em leituras.
 
 ---
 
@@ -320,7 +320,7 @@ Webhooks
 
 ### Paginação
 
-Cursor-based em todas as listagens:
+Cursor-based em todas listagens:
 ```
 GET /videos/feed?cursor=2026-03-20T10:00:00Z&limit=20
 Response: { data: [...], nextCursor: "..." }
@@ -347,8 +347,8 @@ Pesos configuráveis em `appsettings.json`:
 
 ## Autenticação
 
-JWT com dois tokens:
-- **Access token:** 15 min, enviado em `Authorization: Bearer {token}`
+JWT dois tokens:
+- **Access token:** 15 min, `Authorization: Bearer {token}`
 - **Refresh token:** 7 dias, armazenado em `RefreshTokens` no banco, rotacionado a cada uso
 
 ---
@@ -408,20 +408,20 @@ JWT com dois tokens:
 ## Melhorias Futuras
 
 ### Upload
-- Multipart upload com resume (S3 Multipart API + localStorage no cliente)
+- Multipart upload com resume (S3 Multipart API + localStorage cliente)
 
 ### Notificações
-- Notificação quando o processamento do próprio vídeo terminar (SSE ou SignalR)
-- Notificações de novos vídeos dos canais inscritos (feed de atualizações em tempo real)
+- SSE/SignalR quando processamento próprio vídeo terminar
+- Notificações novos vídeos canais inscritos (feed tempo real)
   - Tabela `Notifications { Id, UserId, Type, Payload, ReadAt, CreatedAt }`
-  - Endpoints: `GET /notifications` (listagem), `PATCH /notifications/{id}/read`, `GET /notifications/unread-count`
-  - Geradas no webhook handler quando um vídeo fica `ready`, para todos os seguidores do canal
+  - Endpoints: `GET /notifications`, `PATCH /notifications/{id}/read`, `GET /notifications/unread-count`
+  - Geradas no webhook handler quando vídeo fica `ready`, para todos seguidores do canal
 
 ### Busca
-- Busca de vídeos por título/descrição/tags via `GET /videos/search?q=...`
-  - v1: usar o índice `tsvector` já planejado no PostgreSQL (GIN index em `Title + Description`)
-  - v2 (escala): migrar para Elasticsearch quando o Postgres não aguentar
+- `GET /videos/search?q=...` por título/descrição/tags
+  - v1: índice `tsvector` PostgreSQL (GIN em `Title + Description`)
+  - v2 (escala): migrar Elasticsearch
 
 ### Operacional
-- Dashboard Grafana consumindo métricas do VideoProcessor
-- Rate limiting por usuário nos endpoints de upload
+- Dashboard Grafana consumindo métricas VideoProcessor
+- Rate limiting por usuário nos endpoints upload

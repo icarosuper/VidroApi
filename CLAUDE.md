@@ -1,26 +1,26 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+File give guidance to Claude Code (claude.ai/code) when work with code in repo.
 
 ## Language
 
-All code must be in English: class names, method names, variables, test names, log messages, comments, and XML docs. The only exception is commit messages, which are written in Portuguese.
+All code must be in English: class names, method names, variables, test names, log messages, comments, and XML docs. Only exception is commit messages, written in Portuguese.
 
 ## Git commits
 
 **NEVER commit code without explicit user request.** Always:
-1. Implement the changes
-2. Run tests to verify they pass
-3. Show the user the changes and suggest a commit message
-4. Wait for the user to approve or request the commit
+1. Implement changes
+2. Run tests, verify pass
+3. Show user changes, suggest commit message
+4. Wait for user approve or request commit
 
 ## Working style
 
 After each implementation step:
-1. **Run all tests** — `dotnet test` after finishing a feature. Fix any failures before proceeding.
-2. **Update relevant docs** — reflect any schema, endpoint, or design changes in `docs/plans/` and `docs/claude/features-index.md`.
-3. **Suggest a commit message in Portuguese** — the user reviews and commits manually. Never commit without being asked.
-4. **Show the next possible steps** — brief list so the user can choose what to implement next.
+1. **Run all tests** — `dotnet test` after finish feature. Fix failures before proceed.
+2. **Update relevant docs** — reflect schema, endpoint, or design changes in `docs/plans/` and `docs/claude/features-index.md`.
+3. **Suggest commit message in Portuguese** — user review and commit manually. Never commit without ask.
+4. **Show next possible steps** — brief list so user choose what implement next.
 
 ## Commands
 
@@ -55,29 +55,29 @@ docker-compose up -d postgres redis minio
 Domain ← Application ← Infrastructure ← Api
 ```
 
-Each feature is a self-contained file under `src/VidroApi.Api/Features/<Domain>/FeatureName.cs`.
+Each feature is self-contained file under `src/VidroApi.Api/Features/<Domain>/FeatureName.cs`.
 
-→ Read `docs/claude/architecture.md` when creating a new feature, endpoint, or adding auth/VideoProcessor integration.
+→ Read `docs/claude/architecture.md` when create new feature, endpoint, or add auth/VideoProcessor integration.
 
 ## Conventions
 
-→ Read `docs/claude/conventions.md` before creating or editing domain entities, writing features, or adding tests.
+→ Read `docs/claude/conventions.md` before create or edit domain entities, write features, or add tests.
 
 ## Design decisions
 
-→ Read `docs/claude/design-decisions.md` when implementing deletion, counters, pagination, cascades, or MinIO cleanup.
+→ Read `docs/claude/design-decisions.md` when implement deletion, counters, pagination, cascades, or MinIO cleanup.
 
 ## Features index
 
-→ Read `docs/claude/features-index.md` to locate an existing feature file before searching the codebase. Update it whenever a feature is added or removed.
+→ Read `docs/claude/features-index.md` to locate existing feature file before search codebase. Update whenever feature added or removed.
 
 ## Branching and release strategy
 
-- **Feature branches** — one branch per feature group, branching off `master` and merged back via PR.
-- **`master`** — always deployable. CI/CD deploys `master` HEAD to staging automatically.
-- **Releases** — marked with a git tag (`v1.0.0`, `v1.1.0`, etc.) on `master`. Production deploys from tags.
-- **Coordination with VidroProcessor** — when a change affects the shared contract (MinIO paths, Redis queue name, webhook format), both repos must be tagged and deployed together.
+- **Feature branches** — one branch per feature group, branch off `master`, merge back via PR.
+- **`master`** — always deployable. CI/CD deploy `master` HEAD to staging automatically.
+- **Releases** — marked with git tag (`v1.0.0`, `v1.1.0`, etc.) on `master`. Production deploy from tags.
+- **Coordination with VidroProcessor** — when change affect shared contract (MinIO paths, Redis queue name, webhook format), both repos must be tagged and deployed together.
 
 ## Implementation plan
 
-See `docs/plans/2026-03-26-implementation-plan.md` for the full task-by-task plan.
+See `docs/plans/2026-03-26-implementation-plan.md` for full task-by-task plan.
