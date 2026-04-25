@@ -1,10 +1,8 @@
 # VidroApi
 
-**Vidro** — [VidroProcessor](../Processor) · [VidroFront](../FrontNovo)
-
----
-
-REST API for Vidro, a video platform. Built with .NET 10, Clean Architecture + Vertical Slice.
+REST API for Vidro, a video platform.
+Works alongside [VidroProcessor](https://github.com/icarosuper/video-processor-go) for video processing and [VidroFront](https://github.com/icarosuper/VidroFront) as the frontend.
+Built with .NET 10, Clean Architecture + Vertical Slice.
 
 ## Stack
 
