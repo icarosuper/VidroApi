@@ -22,7 +22,7 @@ public class GetVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task GetVideo_PublicReadyVideo_Returns200()
     {
-        var (_, _, videoId) = await CreateReadyVideo(visibility: 0);
+        var (_, videoId) = await CreateReadyVideo(visibility: 0);
 
         var response = await _client.GetAsync($"/v1/videos/{videoId}");
 
@@ -37,7 +37,7 @@ public class GetVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task GetVideo_PrivateVideo_AsOwner_Returns200()
     {
-        var (accessToken, _, videoId) = await CreateReadyVideo(visibility: 2); // Private
+        var (accessToken, videoId) = await CreateReadyVideo(visibility: 2); // Private
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         var response = await _client.GetAsync($"/v1/videos/{videoId}");
@@ -48,7 +48,7 @@ public class GetVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task GetVideo_PrivateVideo_AsNonOwner_Returns404()
     {
-        var (_, _, videoId) = await CreateReadyVideo(visibility: 2); // Private
+        var (_, videoId) = await CreateReadyVideo(visibility: 2); // Private
 
         var otherToken = await SignUpAndGetAccessToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", otherToken);
@@ -69,10 +69,10 @@ public class GetVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task GetVideo_PendingUploadVideo_AsNonOwner_Returns404()
     {
-        var (accessToken, channelId) = await CreateChannelAndGetIds();
+        var (accessToken, username, channelHandle) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var createResponse = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var createResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title = "Pending Video",
             tags = Array.Empty<string>(),
@@ -87,12 +87,12 @@ public class GetVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
-    private async Task<(string AccessToken, Guid ChannelId, Guid VideoId)> CreateReadyVideo(int visibility = 0)
+    private async Task<(string AccessToken, Guid VideoId)> CreateReadyVideo(int visibility = 0)
     {
-        var (accessToken, channelId) = await CreateChannelAndGetIds();
+        var (accessToken, username, channelHandle) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var createResponse = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var createResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title = "Test Video",
             description = "A test video",
@@ -104,7 +104,7 @@ public class GetVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         await SimulateProcessingCompletedAsync(videoId);
 
-        return (accessToken, channelId, videoId);
+        return (accessToken, videoId);
     }
 
     private async Task SimulateProcessingCompletedAsync(Guid videoId)
@@ -158,7 +158,7 @@ public class GetVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    private async Task<(string AccessToken, Guid ChannelId)> CreateChannelAndGetIds()
+    private async Task<(string AccessToken, string Username, string ChannelHandle)> CreateChannelAndGetIds()
     {
         var username = $"usr{Guid.NewGuid():N}"[..15];
         var email = $"user_{Guid.NewGuid():N}@example.com";
@@ -172,11 +172,9 @@ public class GetVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
-        var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
 
-        return (accessToken, channelId);
+        return (accessToken, username, "test-channel");
     }
 
     private async Task<string> SignUpAndGetAccessToken()

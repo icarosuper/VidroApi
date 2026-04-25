@@ -23,7 +23,7 @@ public class VideoProcessedTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task VideoProcessed_WithValidSignature_AndSuccess_Returns200()
     {
-        var (_, _, videoId) = await CreateProcessingVideo();
+        var (_, videoId) = await CreateProcessingVideo();
 
         var response = await SendVideoProcessedWebhookAsync(videoId, success: true, secret: WebhookSecret);
 
@@ -33,7 +33,7 @@ public class VideoProcessedTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task VideoProcessed_WithValidSignature_AndSuccess_VideoBecomesReady()
     {
-        var (_, _, videoId) = await CreateProcessingVideo();
+        var (_, videoId) = await CreateProcessingVideo();
 
         await SendVideoProcessedWebhookAsync(videoId, success: true, secret: WebhookSecret);
 
@@ -48,7 +48,7 @@ public class VideoProcessedTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task VideoProcessed_WithValidSignature_AndFailure_Returns200()
     {
-        var (_, _, videoId) = await CreateProcessingVideo();
+        var (_, videoId) = await CreateProcessingVideo();
 
         var response = await SendVideoProcessedWebhookAsync(videoId, success: false, secret: WebhookSecret);
 
@@ -58,7 +58,7 @@ public class VideoProcessedTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task VideoProcessed_WithValidSignature_AndFailure_VideoBecomesFailedAndIsHiddenFromPublic()
     {
-        var (_, _, videoId) = await CreateProcessingVideo();
+        var (_, videoId) = await CreateProcessingVideo();
 
         await SendVideoProcessedWebhookAsync(videoId, success: false, secret: WebhookSecret);
 
@@ -71,7 +71,7 @@ public class VideoProcessedTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task VideoProcessed_WithInvalidSignature_Returns401()
     {
-        var (_, _, videoId) = await CreateProcessingVideo();
+        var (_, videoId) = await CreateProcessingVideo();
 
         var response = await SendVideoProcessedWebhookAsync(videoId, success: true, secret: "wrong-secret");
 
@@ -81,7 +81,7 @@ public class VideoProcessedTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task VideoProcessed_WithMissingSignatureHeader_Returns401()
     {
-        var (_, _, videoId) = await CreateProcessingVideo();
+        var (_, videoId) = await CreateProcessingVideo();
 
         var payload = BuildSuccessPayload(videoId);
         var request = new HttpRequestMessage(HttpMethod.Post, "/webhooks/video-processed")
@@ -105,7 +105,7 @@ public class VideoProcessedTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task VideoProcessed_WhenVideoIsNotInProcessingStatus_Returns200AndIsIgnored()
     {
-        var (_, _, videoId) = await CreateVideoAndGetIds();
+        var (_, videoId) = await CreateVideoAndGetIds();
         // Video is still in PendingUpload — skip MinioUploadCompleted step
 
         var response = await SendVideoProcessedWebhookAsync(videoId, success: true, secret: WebhookSecret);
@@ -158,9 +158,9 @@ public class VideoProcessedTests(ApiFactory factory) : IClassFixture<ApiFactory>
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    private async Task<(string AccessToken, Guid ChannelId, Guid VideoId)> CreateProcessingVideo()
+    private async Task<(string AccessToken, Guid VideoId)> CreateProcessingVideo()
     {
-        var (accessToken, channelId, videoId) = await CreateVideoAndGetIds();
+        var (accessToken, videoId) = await CreateVideoAndGetIds();
 
         var minioPayload = JsonSerializer.Serialize(new
         {
@@ -174,15 +174,15 @@ public class VideoProcessedTests(ApiFactory factory) : IClassFixture<ApiFactory>
         minioRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", MinioUploadToken);
         await _client.SendAsync(minioRequest);
 
-        return (accessToken, channelId, videoId);
+        return (accessToken, videoId);
     }
 
-    private async Task<(string AccessToken, Guid ChannelId, Guid VideoId)> CreateVideoAndGetIds()
+    private async Task<(string AccessToken, Guid VideoId)> CreateVideoAndGetIds()
     {
-        var (accessToken, channelId) = await CreateChannelAndGetIds();
+        var (accessToken, username, channelHandle) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var createResponse = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var createResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title = "Processing Test Video",
             tags = Array.Empty<string>(),
@@ -191,10 +191,10 @@ public class VideoProcessedTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var createBody = await createResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var videoId = Guid.Parse(createBody.GetProperty("data").GetProperty("videoId").GetString()!);
 
-        return (accessToken, channelId, videoId);
+        return (accessToken, videoId);
     }
 
-    private async Task<(string AccessToken, Guid ChannelId)> CreateChannelAndGetIds()
+    private async Task<(string AccessToken, string Username, string ChannelHandle)> CreateChannelAndGetIds()
     {
         var username = $"usr{Guid.NewGuid():N}"[..15];
         var email = $"user_{Guid.NewGuid():N}@example.com";
@@ -208,11 +208,9 @@ public class VideoProcessedTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
-        var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
 
-        return (accessToken, channelId);
+        return (accessToken, username, "test-channel");
     }
 
     private async Task<string> SignUpAndGetAccessToken()

@@ -18,7 +18,8 @@ public static class ListChannelVideos
 {
     public record Command : IRequest<Result<Response, Error>>
     {
-        public Guid ChannelId { get; init; }
+        public string Username { get; init; } = null!;
+        public string ChannelHandle { get; init; } = null!;
         public Guid? RequestingUserId { get; init; }
         public DateTimeOffset? Cursor { get; init; }
         public int Limit { get; init; }
@@ -58,8 +59,9 @@ public static class ListChannelVideos
     }
 
     public static void MapEndpoint(IEndpointRouteBuilder app) =>
-        app.MapGet("/v1/channels/{channelId:guid}/videos", async (
-            Guid channelId,
+        app.MapGet("/v1/users/{username}/channels/{handle}/videos", async (
+            string username,
+            string handle,
             ClaimsPrincipal user,
             IMediator mediator,
             DateTimeOffset? cursor,
@@ -71,7 +73,8 @@ public static class ListChannelVideos
                 : null;
             var cmd = new Command
             {
-                ChannelId = channelId,
+                Username = username,
+                ChannelHandle = handle,
                 RequestingUserId = requestingUserId,
                 Cursor = cursor,
                 Limit = limit
@@ -89,12 +92,12 @@ public static class ListChannelVideos
         {
             var channel = await db.Channels
                 .Include(c => c.User)
-                .FirstOrDefaultAsync(c => c.Id == cmd.ChannelId, ct);
+                .FirstOrDefaultAsync(c => c.Handle == cmd.ChannelHandle && c.User.Username == cmd.Username, ct);
             if (channel is null)
-                return CommonErrors.NotFound(nameof(Domain.Entities.Channel), cmd.ChannelId);
+                return CommonErrors.NotFound(nameof(Domain.Entities.Channel), $"{cmd.Username}/{cmd.ChannelHandle}");
 
             var isOwner = channel.UserId == cmd.RequestingUserId;
-            var videos = await FetchChannelVideos(cmd.ChannelId, isOwner, cmd.Cursor, cmd.Limit, ct);
+            var videos = await FetchChannelVideos(channel.Id, isOwner, cmd.Cursor, cmd.Limit, ct);
 
             var thumbnailUrlLists = await GetThumbnails(videos);
             var channelAvatarUrl = await GenerateAvatarUrl(channel.AvatarPath);

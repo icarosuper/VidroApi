@@ -1,0 +1,11 @@
+# Design Decisions
+
+- **Counters are denormalized** — `LikeCount`, `DislikeCount`, `ViewCount` on `Videos` and `FollowerCount` on `Channels` update atomic via `ExecuteUpdateAsync`. Never use `COUNT(*)` for these.
+- **`VideoCount` on playlists is historical counter** — increment when video added, decrement when user remove, **never decrement when video deleted**. Intentional (same as YouTube). `DeleteBehavior.SetNull` on `PlaylistItem.VideoId` handle FK auto; `GetPlaylist` filter null `VideoId` in response.
+- **Cursor-based pagination everywhere** — use `CreatedAt` as cursor, never `OFFSET`.
+- **Declare composite indexes for every common query pattern** — when query filter 2+ columns together (e.g. `WHERE video_id = ? AND parent_comment_id IS NULL`, `WHERE status = ? AND visibility = ?`), add composite `HasIndex` in entity `IEntityTypeConfiguration`. EF Core auto-create single-column FK indexes, never composite. Add index in config file with rest of mapping, not in migration.
+- **Videos belong to Channels, not Users** — `Video.ChannelId → Channel.UserId`. User can own multiple channels.
+- **`VideoArtifacts` and `VideoMetadata` are separate tables** — 1:1 with `Videos`, nullable until processing complete.
+- **`DeleteBehavior.Cascade` is global** — `OnModelCreating` enforce `Cascade` on every FK by default. Delete parent auto-delete all dependents at DB level (PostgreSQL `ON DELETE CASCADE`), atomic — all delete or nothing, same transaction. Use `DeleteBehavior.Restrict` only to block deletion when dependents exist (shared data, peer relationships). Use `DeleteBehavior.SetNull` when child survive without parent (e.g. `PlaylistItem.VideoId`).
+- **MinIO cleanup go through `PendingStorageCleanup`** — never call `IMinioService` direct from delete handler. Instead stage `PendingStorageCleanup` records (one per object path or prefix) inside same transaction that delete DB rows. `StorageCleanupService` process table in background. Use `isPrefix: true` for paths needing `DeleteObjectsByPrefixAsync` (HLS segments, thumbnails folder).
+- **Single presigned PUT URL for upload** — multipart planned, not implemented. See `docs/plans/` for future work.

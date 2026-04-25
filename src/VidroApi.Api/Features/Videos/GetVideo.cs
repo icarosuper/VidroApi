@@ -40,6 +40,8 @@ public static class GetVideo
         public int CommentCount { get; init; }
         public List<string> ThumbnailUrls { get; init; } = [];
         public string? VideoUrl { get; init; }
+        public EnumValue? UserReaction { get; init; }
+        public bool IsFollowingChannel { get; init; }
         public DateTimeOffset CreatedAt { get; init; }
     }
 
@@ -74,6 +76,8 @@ public static class GetVideo
             var thumbnailUrls = await GenerateThumbnailUrls(video.Artifacts);
             var videoUrl = await GenerateUrlAsync(video.Artifacts?.ProcessedPath, _videoUrlTtl);
             var channelAvatarUrl = await GenerateUrlAsync(video.Channel.AvatarPath, _thumbnailUrlTtl);
+            var isFollowingChannel = await CheckIfFollowingChannel(video.ChannelId, cmd.RequestingUserId, ct);
+            var userReaction = await FetchUserReaction(video.Id, cmd.RequestingUserId, ct);
 
             return new Response
             {
@@ -94,6 +98,8 @@ public static class GetVideo
                 CommentCount = video.CommentCount,
                 ThumbnailUrls = thumbnailUrls,
                 VideoUrl = videoUrl,
+                UserReaction = userReaction,
+                IsFollowingChannel = isFollowingChannel,
                 CreatedAt = video.CreatedAt
             };
         }
@@ -107,6 +113,25 @@ public static class GetVideo
                     && (v.Channel.UserId == requestingUserId
                         || (v.Status == VideoStatus.Ready && v.Visibility != VideoVisibility.Private)),
                     ct);
+        }
+
+        private Task<EnumValue?> FetchUserReaction(Guid videoId, Guid? requestingUserId, CancellationToken ct)
+        {
+            if (requestingUserId is null)
+                return Task.FromResult<EnumValue?>(null);
+
+            return db.Reactions
+                .Where(r => r.VideoId == videoId && r.UserId == requestingUserId)
+                .Select(r => new EnumValue { Id = (int)r.Type, Value = r.Type.ToString() })
+                .FirstOrDefaultAsync(ct);
+        }
+
+        private Task<bool> CheckIfFollowingChannel(Guid channelId, Guid? requestingUserId, CancellationToken ct)
+        {
+            if (requestingUserId is null)
+                return Task.FromResult(false);
+
+            return db.ChannelFollowers.AnyAsync(f => f.ChannelId == channelId && f.UserId == requestingUserId, ct);
         }
 
         private async Task<List<string>> GenerateThumbnailUrls(Domain.Entities.VideoArtifacts? artifacts)

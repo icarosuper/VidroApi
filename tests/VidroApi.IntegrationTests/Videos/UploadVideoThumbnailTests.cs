@@ -78,11 +78,9 @@ public class UploadVideoThumbnailTests(ApiFactory factory) : IClassFixture<ApiFa
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
-        var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
 
-        var videoResponse = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var videoResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/test-channel/videos", new
         {
             title = "My Video",
             tags = Array.Empty<string>(),

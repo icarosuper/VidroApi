@@ -2,9 +2,9 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Construir uma API REST de plataforma de vídeos em .NET 10 com Clean Architecture + Vertical Slice que orquestra o VideoProcessor (Go) via Redis + MinIO.
+**Goal:** Build REST API video platform .NET 10, Clean Architecture + Vertical Slice, orchestrate VideoProcessor (Go) via Redis + MinIO.
 
-**Architecture:** Clean Architecture em 4 projetos (Domain, Application, Infrastructure, Api). Cada feature vive em um único arquivo com Request/Response/Validator/Handler/MapEndpoint. Despacho via MediatR.
+**Architecture:** Clean Architecture 4 projects (Domain, Application, Infrastructure, Api). Each feature = single file with Request/Response/Validator/Handler/MapEndpoint. Dispatch via MediatR.
 
 **Tech Stack:** .NET 10, PostgreSQL (EF Core + Npgsql), Redis (StackExchange.Redis), MinIO SDK, MediatR, FluentValidation, JWT Bearer, BCrypt.Net-Next, xUnit, Testcontainers
 
@@ -330,7 +330,7 @@ public class RefreshToken
 }
 ```
 
-**Step 3: Criar DomainError (tipo resultado sem exceptions)**
+**Step 3: Criar DomainError (result type, no exceptions)**
 
 ```csharp
 // src/VideoApi.Domain/Errors/DomainError.cs
@@ -1134,7 +1134,7 @@ dotnet ef migrations add InitialCreate \
   --startup-project src/VideoApi.Api \
   --output-dir Persistence/Migrations
 ```
-Expected: arquivos de migration criados em `Persistence/Migrations/`.
+Expected: migration files criados em `Persistence/Migrations/`.
 
 **Step 4: Aplicar migration**
 
@@ -1173,7 +1173,7 @@ using VideoApi.Infrastructure.Persistence;
 // Teste: registrar email duplicado → lança ValidationException
 ```
 
-> Nota: para testes unitários de handlers que usam DbContext, use `UseInMemoryDatabase` do EF Core ou mock com NSubstitute.
+> Nota: unit tests de handlers com DbContext — use `UseInMemoryDatabase` do EF Core ou mock com NSubstitute.
 
 **Step 2: Rodar o teste para ver falhar**
 
@@ -1471,14 +1471,14 @@ git commit -m "feat: add Auth/Login and Auth/RefreshToken slices"
 
 ## Task 9.1: ✅ Auth — SignOut
 
-**Descrição:** Implementar endpoint para logout do usuário, revogando seu refresh token.
+**Descrição:** Logout — revoga refresh token do usuário.
 
 **Implementado em:** `src/VidroApi.Api/Features/Auth/SignOut.cs`
 
 - Endpoint `POST /v1/auth/signout` — requer autenticação
 - Input: `RefreshToken` (body)
-- Remove o refresh token do banco (soft-delete ou remoção)
-- Previne reutilização do token
+- Remove refresh token do banco (soft-delete ou remoção)
+- Impede reutilização
 - Validação: refresh token deve pertencer ao usuário autenticado
 
 ---
@@ -1564,7 +1564,7 @@ public static class CreateChannel
 }
 ```
 
-> **Nota sobre userId nos slices:** A forma mais limpa com Vertical Slice é incluir o `UserId` no `Request` e populá-lo no endpoint antes de enviar ao mediator. Ajuste o `record Request` para incluir `Guid UserId` e passe `req with { UserId = ctx.User.GetUserId() }`.
+> **Nota sobre userId nos slices:** Forma mais limpa com Vertical Slice — incluir `UserId` no `Request` e populá-lo no endpoint antes de enviar ao mediator. Ajuste o `record Request` para incluir `Guid UserId` e passe `req with { UserId = ctx.User.GetUserId() }`.
 
 **Step 2: Implementar GetChannel**
 
@@ -1609,7 +1609,7 @@ public static class GetChannel
 }
 ```
 
-**Step 3: Implementar UpdateChannel e DeleteChannel** seguindo o mesmo padrão — validar que `UserId == channel.UserId` antes de modificar.
+**Step 3: Implementar UpdateChannel e DeleteChannel** — mesmo padrão — validar `UserId == channel.UserId` antes de modificar.
 
 **Step 4: Registrar endpoints no Program.cs**
 
@@ -1693,9 +1693,9 @@ public static class FollowChannel
 }
 ```
 
-**Step 2: Implementar UnfollowChannel** — inverso de Follow, decrementa contador.
+**Step 2: Implementar UnfollowChannel** — inverso, decrementa contador.
 
-> **Nota:** `ListChannelVideos` foi movido para o contexto de vídeos (Task 12+), onde filtros avançados de ordenação e busca serão discutidos junto com as demais listagens.
+> **Nota:** `ListChannelVideos` movido para contexto de vídeos (Task 12+), com filtros avançados de ordenação e busca.
 
 **Step 3: Registrar no Program.cs e compilar**
 
@@ -1883,7 +1883,7 @@ git commit -m "feat: add Videos/CreateVideo and Videos/ConfirmUpload slices"
 
 **Step 1: Implementar GetVideo**
 
-GetVideo deve retornar presigned GET URLs para todos os artefatos disponíveis (TTL: 1h).
+GetVideo retorna presigned GET URLs para todos os artefatos disponíveis (TTL: 1h).
 
 ```csharp
 // src/VideoApi.Application/Videos/GetVideo.cs
@@ -1997,7 +1997,7 @@ git commit -m "feat: add Videos/GetVideo and Videos/DeleteVideo slices"
 
 ```csharp
 // src/VideoApi.Application/Videos/ListFeedVideos.cs
-// Retorna vídeos recentes dos canais que o usuário segue, cursor-based
+// Vídeos recentes de canais seguidos pelo usuário, cursor-based
 // WHERE v.ChannelId IN (SELECT ChannelId FROM ChannelFollowers WHERE UserId = @userId)
 //   AND v.Status = 'Ready'
 //   AND v.CreatedAt < @cursor  (se cursor fornecido)
@@ -2032,7 +2032,7 @@ git commit -m "feat: add Videos/ListFeedVideos and Videos/ListTrendingVideos sli
 - Create: `src/VideoApi.Application/Videos/VideoProcessedWebhook.cs`
 - Create: `tests/VideoApi.UnitTests/Videos/VideoProcessedWebhookTests.cs`
 
-Este é o endpoint mais crítico — valida a assinatura HMAC e atualiza o estado do vídeo.
+Endpoint mais crítico — valida assinatura HMAC e atualiza estado do vídeo.
 
 **Step 1: Escrever testes**
 
@@ -2195,17 +2195,15 @@ git commit -m "feat: add Videos/VideoProcessedWebhook with HMAC validation"
 
 ```csharp
 // src/VideoApi.Application/Reactions/ReactToVideo.cs
-// Upsert: se já existe reação do mesmo tipo → no-op
-// Se existe reação de tipo diferente → atualiza tipo + ajusta contadores
-// Se não existe → insere + incrementa contador
-// Tudo em uma transação via db.Database.BeginTransactionAsync()
+// Upsert: mesmo tipo → no-op; tipo diferente → atualiza + ajusta contadores; sem reação → insere + incrementa
+// Transação via db.Database.BeginTransactionAsync()
 ```
 
 **Step 2: Implementar RemoveReaction**
 
 ```csharp
 // src/VideoApi.Application/Reactions/RemoveReaction.cs
-// Deleta a reação e decrementa o contador correspondente
+// Deleta reação e decrementa contador correspondente
 ```
 
 **Step 3: Registrar, compilar e commitar**
@@ -2223,12 +2221,12 @@ git commit -m "feat: add Reactions slices (upsert like/dislike)"
 ### Task 17a: ✅ Preparação do modelo
 
 **Alterações no domínio:**
-- `Comment`: adicionados `ParentCommentId? (Guid)` (self-referential FK, 1 nível de profundidade), `LikeCount (int)`, `DislikeCount (int)`, `ReplyCount (int)`. Método de soft delete renomeado para `SoftDelete(now)` para deixar explícito que não é deleção física.
-- `Video`: adicionado `CommentCount (int)` (counter denormalizado, atualizado via `ExecuteUpdateAsync`). Também exposto em `GetVideo` response.
+- `Comment`: adicionados `ParentCommentId? (Guid)` (self-referential FK, 1 nível), `LikeCount (int)`, `DislikeCount (int)`, `ReplyCount (int)`. Soft delete via `SoftDelete(now)`.
+- `Video`: adicionado `CommentCount (int)` (counter denormalizado, atualizado via `ExecuteUpdateAsync`). Exposto em `GetVideo`.
 - Nova entidade `CommentReaction`: `CommentId`, `UserId`, `Type (ReactionType)` — suporta Like e Dislike.
-- Nova configuração: `src/VidroApi.Infrastructure/Persistence/Configurations/CommentReactionConfiguration.cs`
+- Nova config: `src/VidroApi.Infrastructure/Persistence/Configurations/CommentReactionConfiguration.cs`
 - Novo `DbSet<CommentReaction>` no `AppDbContext`
-- Migration: `AddCommentsFeatureMigration` (convenção: sufixo `Migration` obrigatório)
+- Migration: `AddCommentsFeatureMigration` (sufixo `Migration` obrigatório)
 
 ---
 
@@ -2245,21 +2243,21 @@ git commit -m "feat: add Reactions slices (upsert like/dislike)"
 
 **Decisões tomadas:**
 
-`AddComment` — aceita `ParentCommentId?` opcional. Valida que o pai existe, pertence ao mesmo vídeo e não é ele próprio uma resposta (sem nesting além de 1 nível). Incrementa `Video.CommentCount` e, se for resposta, `ParentComment.ReplyCount`, ambos via `ExecuteUpdateAsync` em transação. Validadores nas features com `Request+Command` devem ser `AbstractValidator<Command>` (não `Request`) para serem invocados pelo pipeline MediatR.
+`AddComment` — aceita `ParentCommentId?` opcional. Valida: pai existe, pertence ao mesmo vídeo, não é ele próprio uma resposta (sem nesting >1 nível). Incrementa `Video.CommentCount` e `ParentComment.ReplyCount` via `ExecuteUpdateAsync` em transação. Validators usam `AbstractValidator<Command>` (não `Request`).
 
-`EditComment` — apenas o autor pode editar. Chama `comment.Edit(content, now)`. Retorna 404 para comentários soft-deletados.
+`EditComment` — só autor pode editar. Chama `comment.Edit(content, now)`. Retorna 404 para soft-deletados.
 
-`DeleteComment` — soft delete via `comment.SoftDelete(now)`. Decrementa `Video.CommentCount` e, se for resposta, `ParentComment.ReplyCount`, ambos em transação. Apenas o autor pode deletar.
+`DeleteComment` — soft delete via `comment.SoftDelete(now)`. Decrementa `Video.CommentCount` e `ParentComment.ReplyCount` em transação. Só autor pode deletar.
 
-`ListComments` — apenas comentários raiz (`ParentCommentId == null`). Parâmetro `sort=Recent|Popular`. `Recent`: cursor-based pagination por `CreatedAt DESC`. `Popular`: lista fixa (sem cursor) por `LikeCount DESC, CreatedAt DESC`. Comentários soft-deletados aparecem com `content: null` e `isDeleted: true` (para preservar contexto das respostas). Dono do vídeo pode ver comentários mesmo em vídeos privados (passa `RequestingUserId` via `ClaimsPrincipal`).
+`ListComments` — só comentários raiz (`ParentCommentId == null`). Param `sort=Recent|Popular`. `Recent`: cursor-based por `CreatedAt DESC`. `Popular`: lista fixa por `LikeCount DESC, CreatedAt DESC`. Soft-deletados aparecem com `content: null` e `isDeleted: true`. Dono do vídeo pode ver mesmo em vídeos privados.
 
-`ListReplies` — respostas de um comentário raiz. Cursor-based pagination por `CreatedAt ASC` (ordem cronológica).
+`ListReplies` — respostas de comentário raiz. Cursor-based por `CreatedAt ASC`.
 
-`ReactToComment` — upsert: sem reação → adiciona + incrementa; mesmo tipo → no-op; tipo diferente → `reaction.ChangeType(type)` + troca os contadores. Suporta Like e Dislike (`LikeCount` e `DislikeCount`).
+`ReactToComment` — upsert: sem reação → adiciona + incrementa; mesmo tipo → no-op; tipo diferente → `reaction.ChangeType(type)` + troca contadores. Suporta Like e Dislike.
 
-`RemoveCommentReaction` — remove e decrementa o contador correspondente ao tipo que estava registrado. Transação.
+`RemoveCommentReaction` — remove e decrementa contador do tipo registrado. Transação.
 
-**Limites máximos** (configurados via settings por feature, não hardcoded):
+**Limites máximos** (via settings, não hardcoded):
 - `ListCommentsSettings`: `MaxLimit=100`, `MaxPopularLimit=50`
 - `ListRepliesSettings`: `MaxLimit=50`
 
@@ -2367,11 +2365,11 @@ git commit -m "test: add integration tests with Testcontainers"
 
 ## Task 19: Playlists
 
-**Modelo:** Uma única entidade `Playlist` com `Scope` enum (`User`/`Channel`). Playlists de usuário aceitam vídeos de qualquer canal; playlists de canal só aceitam vídeos do próprio canal.
+**Modelo:** Entidade `Playlist` com `Scope` enum (`User`/`Channel`). Playlists de usuário aceitam vídeos de qualquer canal; playlists de canal só aceitam vídeos do próprio canal.
 
 **Entities:**
-- `Playlist` — campos: `UserId` (dono sempre é um usuário), `ChannelId?` (preenchido quando `Scope = Channel`), `Scope` (User/Channel), `Name`, `Description?`, `Visibility` (Public/Private), `VideoCount` (denormalizado).
-- `PlaylistItem` — join table entre `Playlist` e `Video`. Campos: `PlaylistId`, `VideoId`, `Order` (int, posição na playlist).
+- `Playlist` — campos: `UserId` (dono sempre usuário), `ChannelId?` (preenchido quando `Scope = Channel`), `Scope` (User/Channel), `Name`, `Description?`, `Visibility` (Public/Private), `VideoCount` (denormalizado).
+- `PlaylistItem` — join table `Playlist`↔`Video`. Campos: `PlaylistId`, `VideoId`, `Order` (int, posição).
 
 **Files:**
 - Create: `src/VidroApi.Domain/Entities/Playlist.cs`
@@ -2408,13 +2406,13 @@ git commit -m "test: add integration tests with Testcontainers"
 | PUT | `/v1/playlists/{playlistId}/items/order` | ✅ dono | Reordenar itens (recebe lista ordenada de videoIds) |
 
 **Regras de negócio:**
-- `Scope = Channel` exige `ChannelId` no request; valida que o usuário é dono do canal.
-- `AddVideoToPlaylist` com `Scope = Channel` valida que o vídeo pertence ao canal da playlist → 422 se não pertencer.
-- `VideoCount` é denormalizado em `Playlist` e atualizado via `ExecuteUpdateAsync` ao adicionar/remover itens.
-- `Order` é gerenciado pelo endpoint de reordenação — recebe um array de `videoId` na ordem desejada e reatribui `Order = índice`.
-- `GetPlaylist` retorna os itens ordenados por `Order`, com campos básicos do vídeo (id, title, thumbnailUrl, duration).
-- Playlist privada retorna 404 para não-donos.
-- Um vídeo não pode ser adicionado duas vezes à mesma playlist → 409.
+- `Scope = Channel` exige `ChannelId`; valida usuário é dono do canal.
+- `AddVideoToPlaylist` com `Scope = Channel` valida vídeo pertence ao canal → 422 se não.
+- `VideoCount` denormalizado, atualizado via `ExecuteUpdateAsync` ao adicionar/remover.
+- `Order`: reordenação recebe array de `videoId` na ordem desejada, reatribui `Order = índice`.
+- `GetPlaylist` retorna itens ordenados por `Order`, campos básicos do vídeo (id, title, thumbnailUrl, duration).
+- Playlist privada → 404 para não-donos.
+- Vídeo duplicado na mesma playlist → 409.
 - Erros específicos em `Errors.Playlist.cs`: `NotOwner`, `VideoAlreadyInPlaylist`, `VideoNotInPlaylist`, `VideoNotFromChannel`.
 
 **Migration:**
@@ -2427,20 +2425,20 @@ dotnet ef migrations add AddPlaylists --project src/VidroApi.Infrastructure --st
 
 ## Task 20: ✅ Videos — UploadVideoThumbnail
 
-**Descrição:** Permite ao dono do vídeo fazer upload de uma thumbnail personalizada, substituindo as geradas automaticamente pelo VideoProcessor.
+**Descrição:** Dono do vídeo faz upload de thumbnail personalizada, substituindo as geradas pelo VideoProcessor.
 
-**Fluxo:** Mesmo padrão do upload de vídeo — API gera uma presigned PUT URL no MinIO e o cliente faz o upload diretamente. Não há webhook; a thumbnail fica disponível imediatamente após o upload.
+**Fluxo:** Mesmo padrão do upload de vídeo — API gera presigned PUT URL no MinIO, cliente faz upload direto. Sem webhook; thumbnail disponível imediatamente.
 
-**Caminho no MinIO:** `thumbnails/{videoId}/custom.jpg` (separado das thumbs automáticas em `thumbnails/{videoId}/thumb{n}.jpg`).
+**Caminho no MinIO:** `thumbnails/{videoId}/custom.jpg` (separado de `thumbnails/{videoId}/thumb{n}.jpg`).
 
 **Entities:**
-- `VideoArtifacts` — adicionar campo `CustomThumbnailPath` (`string?`, nullable até o dono fazer upload).
+- `VideoArtifacts` — adicionar campo `CustomThumbnailPath` (`string?`).
 
 **Files:**
 - Update: `src/VidroApi.Domain/Entities/VideoArtifacts.cs` (campo `CustomThumbnailPath`)
 - Create: `src/VidroApi.Api/Features/Videos/UploadVideoThumbnail.cs`
 - Create: `tests/VidroApi.IntegrationTests/Videos/UploadVideoThumbnailTests.cs`
-- Migration para adicionar `custom_thumbnail_path` em `video_artifacts`
+- Migration para `custom_thumbnail_path` em `video_artifacts`
 
 **Endpoints:**
 
@@ -2449,16 +2447,16 @@ dotnet ef migrations add AddPlaylists --project src/VidroApi.Infrastructure --st
 | POST | `/v1/videos/{videoId}/thumbnail` | ✅ dono | Gera presigned URL para upload de thumbnail personalizada |
 
 **Regras de negócio:**
-- Vídeo precisa existir e o usuário ser o dono → 403/404 conforme padrão de visibilidade.
-- Não exige que o vídeo seja `Ready` — dono pode fazer upload de thumbnail em qualquer status.
-- Retorna `uploadUrl` e `expiresAt`, igual ao `CreateVideo`.
-- O campo `CustomThumbnailPath` em `VideoArtifacts` é preenchido na própria resposta (já sabemos o path antes do upload completar, pois é determinístico: `thumbnails/{videoId}/custom.jpg`).
+- Vídeo deve existir e usuário ser dono → 403/404 conforme padrão.
+- Não exige `Status = Ready`.
+- Retorna `uploadUrl` e `expiresAt`.
+- `CustomThumbnailPath` preenchido imediatamente (path determinístico: `thumbnails/{videoId}/custom.jpg`).
 
 ---
 
 ## Task 21: ✅ Users — Foto de Perfil
 
-**Descrição:** Usuários podem fazer upload de uma foto de perfil. Mesmo padrão de presigned URL.
+**Descrição:** Upload de foto de perfil via presigned URL.
 
 **Caminho no MinIO:** `avatars/{userId}`.
 
@@ -2470,7 +2468,7 @@ dotnet ef migrations add AddPlaylists --project src/VidroApi.Infrastructure --st
 - Update: `src/VidroApi.Infrastructure/Persistence/Configurations/UserConfiguration.cs` (mapear `avatar_path`)
 - Create: `src/VidroApi.Api/Features/Users/UploadAvatar.cs`
 - Create: `tests/VidroApi.IntegrationTests/Users/UploadAvatarTests.cs`
-- Migration para adicionar `avatar_path` em `users`
+- Migration para `avatar_path` em `users`
 
 **Endpoints:**
 
@@ -2480,14 +2478,14 @@ dotnet ef migrations add AddPlaylists --project src/VidroApi.Infrastructure --st
 
 **Regras de negócio:**
 - Retorna `uploadUrl` e `expiresAt`.
-- Path é determinístico (`avatars/{userId}`), então `AvatarPath` pode ser gravado no banco imediatamente, antes mesmo do upload completar.
-- Upload substitui o avatar anterior (sem deletar o objeto anterior no MinIO — o path é fixo, o novo upload sobrescreve).
+- Path determinístico (`avatars/{userId}`) → `AvatarPath` gravado antes do upload.
+- Upload sobrescreve avatar anterior (path fixo, novo upload sobrescreve objeto).
 
 ---
 
 ## Task 21.1: ✅ Channels — Foto de Perfil
 
-**Descrição:** Canais podem ter uma foto de perfil (avatar). Mesmo padrão de presigned URL que usuários.
+**Descrição:** Avatar de canal via presigned URL.
 
 **Caminho no MinIO:** `avatars/channels/{channelId}`.
 
@@ -2500,7 +2498,7 @@ dotnet ef migrations add AddPlaylists --project src/VidroApi.Infrastructure --st
 - Update: `src/VidroApi.Api/Features/Channels/GetChannel.cs` (retornar `AvatarUrl` presigned)
 - Update: `src/VidroApi.Api/Features/Channels/ListMyChannels.cs` (retornar `AvatarUrl` presigned)
 - Create: `tests/VidroApi.IntegrationTests/Channels/UploadChannelAvatarTests.cs`
-- Migration para adicionar `avatar_path` em `channels`
+- Migration para `avatar_path` em `channels`
 
 **Endpoints:**
 
@@ -2509,39 +2507,33 @@ dotnet ef migrations add AddPlaylists --project src/VidroApi.Infrastructure --st
 | POST | `/v1/channels/{handle}/avatar` | ✅ dono | Gera presigned URL para upload de avatar do canal |
 
 **Regras de negócio:**
-- Apenas o dono do canal pode fazer upload → 403 se não for dono.
+- Só dono pode fazer upload → 403.
 - Retorna `uploadUrl` e `expiresAt`.
-- Path é determinístico (`avatars/channels/{channelId}`), então `AvatarPath` pode ser gravado no banco imediatamente.
-- A rota usa `{handle}` (string única por usuário), não `{channelId}`. O usuário logado é sempre o dono do canal sendo acessado.
-- `GetChannel` retorna `avatarUrl` (presigned, TTL: 1h) ou `null` se não houver avatar.
-- `ListMyChannels` também retorna `avatarUrl` para cada canal.
-- **Integração com vídeos:** todos os endpoints de listagem/obtenção de vídeo retornam `channelAvatarUrl` (presigned):
-  - `GetVideo` — retorna `channelAvatarUrl` do canal do vídeo
-  - `ListChannelVideos` — retorna `channelAvatarUrl` para cada vídeo
-  - `ListFeedVideos` — retorna `channelAvatarUrl` para cada vídeo
-  - `ListTrendingVideos` — retorna `channelAvatarUrl` para cada vídeo
-  - `SearchVideos` — retorna `channelAvatarUrl` para cada vídeo
+- Path determinístico → `AvatarPath` gravado imediatamente.
+- Rota usa `{handle}` (string única por usuário).
+- `GetChannel` retorna `avatarUrl` (presigned, TTL 1h) ou `null`.
+- `ListMyChannels` retorna `avatarUrl` para cada canal.
+- **Integração com vídeos:** todos os endpoints de listagem/obtenção retornam `channelAvatarUrl` (presigned):
+  - `GetVideo`, `ListChannelVideos`, `ListFeedVideos`, `ListTrendingVideos`, `SearchVideos`
 
 ---
 
 ## Task 22: Videos — Contagem de Visualizações ✅
 
-**Descrição:** Definir e implementar como `ViewCount` é incrementado.
-
 **Decisão:** Opção D — endpoint `POST /v1/videos/{videoId}/view` com deduplicação via Redis.
 
 **Implementado em:** `src/VidroApi.Api/Features/Videos/RegisterVideoView.cs`
 
-- Endpoint `POST /v1/videos/{videoId}/view` — não requer autenticação (anônimos podem gerar views)
+- Endpoint `POST /v1/videos/{videoId}/view` — sem autenticação obrigatória
 - Incremento atômico via `ExecuteUpdateAsync`
-- Deduplicação: chave Redis `view:{videoId}:{userId}` (autenticados) ou `view:{videoId}:{ip}` (anônimos), TTL configurável via `VideoSettings:ViewDeduplicationWindowHours` (padrão: 1 hora)
-- View duplicada dentro da janela retorna `200 OK` silenciosamente
+- Deduplicação: chave Redis `view:{videoId}:{userId}` (autenticados) ou `view:{videoId}:{ip}` (anônimos), TTL via `VideoSettings:ViewDeduplicationWindowHours` (padrão: 1h)
+- View duplicada dentro da janela → `200 OK` silencioso
 
 ---
 
 ## Resumo dos Endpoints
 
-Após todas as tasks, esses são os endpoints registrados no `Program.cs`:
+Após todas as tasks:
 
 ```csharp
 // Auth
@@ -2595,53 +2587,47 @@ ReorderPlaylistItems.MapEndpoint(app);
 
 ## Ordem de Implementação Recomendada
 
-1. Tasks 1–7 (scaffold, domain, infra, migrations) — base de tudo
-2. Task 8–9 (Auth) — necessário para testar os outros endpoints
-3. Task 10–11 (Channels) — necessário para criar vídeos
+1. Tasks 1–7 (scaffold, domain, infra, migrations) — base
+2. Tasks 8–9 (Auth) — necessário para testar outros endpoints
+3. Tasks 10–11 (Channels) — necessário para criar vídeos
 4. Tasks 12–15 (Videos) — core da plataforma
 5. Task 20 (UploadVideoThumbnail) — depende de vídeo pronto
-6. Task 21 (Foto de perfil de usuário) e Task 21.1 (Avatar de canal) — independentes, podem ser feitos a qualquer momento
+6. Tasks 21 e 21.1 (avatars usuário/canal) — independentes
 7. Task 22 (ViewCount) — ✅ implementado
 8. Tasks 16–17 (Reactions + Comments) — features sociais
-9. Task 19 (Playlists) — depende de vídeos estar pronto
+9. Task 19 (Playlists) — depende de vídeos
 10. Task 18 (Integration Tests) — validação end-to-end
 
 ---
 
 ## Task 23: ✅ Users — GetCurrentUser
 
-**Descrição:** Implementar endpoint para retorno dos dados do usuário autenticado.
-
 **Implementado em:** `src/VidroApi.Api/Features/Users/GetCurrentUser.cs`
 
 - Endpoint `GET /v1/users/me` — requer autenticação
-- Retorna dados completos do usuário: `UserId`, `Username`, `Email`, `AvatarUrl`
-- Gera URL presignada para avatar com TTL via MinIO
+- Retorna: `UserId`, `Username`, `Email`, `AvatarUrl`
+- Gera URL presignada para avatar via MinIO
 
 ---
 
 ## Task 24: ✅ Channels — ListUserChannels
 
-**Descrição:** Listar todos os canais de um usuário específico.
-
 **Implementado em:** `src/VidroApi.Api/Features/Channels/ListUserChannels.cs`
 
 - Endpoint `GET /v1/users/{username}/channels` — sem autenticação obrigatória
-- Retorna lista de canais com `ChannelSummary`: id, nome, descrição, contagem de seguidores, avatar URL
-- Gera URLs presignadas para avatars dos canais com TTL via MinIO
-- Validação: retorna erro 404 se o usuário não existe
+- Retorna lista de `ChannelSummary`: id, nome, descrição, contagem de seguidores, avatar URL
+- URLs presignadas para avatars via MinIO
+- 404 se usuário não existe
 
 ---
 
 ## Task 25: ✅ Videos — SearchVideos
 
-**Descrição:** Implementar busca de vídeos por query (título, descrição, tags).
-
 **Implementado em:** `src/VidroApi.Api/Features/Videos/SearchVideos.cs`
 
 - Endpoint `POST /v1/videos/search` — sem autenticação obrigatória
-- Entrada: `Query` (string obrigatória), `Cursor` (paginação), `Limit`
-- Retorna lista de `VideoSummary`: id, canal, título, tags, contadores, múltiplas thumbnails, data de criação
+- Entrada: `Query` (obrigatória), `Cursor` (paginação), `Limit`
+- Retorna `VideoSummary`: id, canal, título, tags, contadores, thumbnails, data
 - Paginação cursor-based com `NextCursor`
 - Validação: query entre `SearchSettings:MinQueryLength` e `SearchSettings:MaxQueryLength`
 
@@ -2649,52 +2635,39 @@ ReorderPlaylistItems.MapEndpoint(app);
 
 ## Task 26: ✅ Channels — Melhorias em GetChannel
 
-**Descrição:** Adicionar dados do dono do canal no endpoint `GET /v1/users/{username}/channels/{handle}`.
-
 **Implementado em:** `src/VidroApi.Api/Features/Channels/GetChannel.cs`
 
 - Campos adicionais na `Response`:
-  - `OwnerId` — ID do usuário dono do canal
-  - `OwnerUsername` — username do dono
-  - `OwnerAvatarUrl` — URL presignada do avatar do dono (gerada via MinIO)
-- Melhora UX ao permitir UI mostrar dados do dono sem chamadas adicionais
+  - `OwnerId`, `OwnerUsername`, `OwnerAvatarUrl` (presigned via MinIO)
 
 ---
 
 ## Task 27: ✅ Videos — Suporte a Múltiplas Thumbnails
 
-**Descrição:** Retornar múltiplas thumbnails nos endpoints de listagem e busca de vídeos.
+**Implementado em:** `ListChannelVideos`, `ListFeedVideos`, `ListTrendingVideos`, `SearchVideos`, `GetVideo`
 
-**Implementado em:** Endpoints `ListChannelVideos`, `ListFeedVideos`, `ListTrendingVideos`, `SearchVideos`, `GetVideo`
-
-- Cada `VideoSummary` agora inclui `List<string> ThumbnailUrls`
-- Geradas a partir de `VideoMetadata.ThumbnailPaths`
-- URLs presignadas com TTL via MinIO
-- Permite UI exibir múltiplos frames do vídeo como preview
+- Cada `VideoSummary` inclui `List<string> ThumbnailUrls`
+- Geradas de `VideoMetadata.ThumbnailPaths`, presignadas via MinIO
 
 ---
 
 ## Task 28: ✅ Comments — Melhorias na Feature de Comentários
 
-**Descrição:** Funcionalidades adicionais para comentários.
-
 **Implementado em:**
-- `src/VidroApi.Api/Features/Comments/EditComment.cs` — editar comentário existente
-- `src/VidroApi.Api/Features/Comments/ListReplies.cs` — listar respostas de um comentário
-- `src/VidroApi.Api/Features/Comments/ReactToComment.cs` — adicionar reação em comentário
-- `src/VidroApi.Api/Features/Comments/RemoveCommentReaction.cs` — remover reação de comentário
+- `src/VidroApi.Api/Features/Comments/EditComment.cs`
+- `src/VidroApi.Api/Features/Comments/ListReplies.cs`
+- `src/VidroApi.Api/Features/Comments/ReactToComment.cs`
+- `src/VidroApi.Api/Features/Comments/RemoveCommentReaction.cs`
 
 **Endpoints adicionados:**
-- `PATCH /v1/comments/{commentId}` — editar comentário (apenas autor)
-- `GET /v1/comments/{commentId}/replies` — listar respostas com paginação cursor-based
+- `PATCH /v1/comments/{commentId}` — editar (só autor)
+- `GET /v1/comments/{commentId}/replies` — listar respostas cursor-based
 - `POST /v1/comments/{commentId}/reactions` — adicionar/alterar reação
 - `DELETE /v1/comments/{commentId}/reactions/{reactionType}` — remover reação
 
 ---
 
 ## Resumo dos Endpoints (Atualizado)
-
-Todos os endpoints implementados até agora:
 
 ```csharp
 // Auth

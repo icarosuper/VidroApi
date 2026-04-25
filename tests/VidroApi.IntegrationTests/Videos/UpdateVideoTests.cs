@@ -158,10 +158,10 @@ public class UpdateVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
     private async Task<(string AccessToken, Guid VideoId)> CreateVideoAndGetIds()
     {
-        var (accessToken, channelId) = await CreateChannelAndGetIds();
+        var (accessToken, username, channelHandle) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var videoResponse = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var videoResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title = "Original Video",
             description = "Original description",
@@ -175,7 +175,7 @@ public class UpdateVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
         return (accessToken, videoId);
     }
 
-    private async Task<(string AccessToken, Guid ChannelId)> CreateChannelAndGetIds()
+    private async Task<(string AccessToken, string Username, string ChannelHandle)> CreateChannelAndGetIds()
     {
         var username = $"usr{Guid.NewGuid():N}"[..15];
         var email = $"user_{Guid.NewGuid():N}@example.com";
@@ -189,11 +189,9 @@ public class UpdateVideoTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
-        var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
 
-        return (accessToken, channelId);
+        return (accessToken, username, "test-channel");
     }
 
     private async Task<string> SignUpAndGetAccessToken()

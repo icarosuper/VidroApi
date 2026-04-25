@@ -46,9 +46,9 @@ public class AddCommentTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task AddComment_ValidTopLevelComment_Returns201WithCommentId()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
         var viewerToken = await SignUpAndGetAccessToken();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", viewerToken);
         var response = await _client.PostAsJsonAsync(
@@ -63,9 +63,9 @@ public class AddCommentTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task AddComment_ValidReply_Returns201AndIncrementsReplyCount()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
         var viewerToken = await SignUpAndGetAccessToken();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
 
         var parentCommentId = await AddCommentAsync(viewerToken, videoId, "Parent comment");
 
@@ -83,9 +83,9 @@ public class AddCommentTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task AddComment_IncrementVideoCommentCount()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
         var viewerToken = await SignUpAndGetAccessToken();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", viewerToken);
         await _client.PostAsJsonAsync($"/v1/videos/{videoId}/comments", new { content = "First comment" });
@@ -103,8 +103,8 @@ public class AddCommentTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var accessToken = await SignUpAndGetAccessToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         var response = await _client.PostAsJsonAsync(
@@ -117,9 +117,9 @@ public class AddCommentTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task AddComment_ReplyToReply_Returns400()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
         var viewerToken = await SignUpAndGetAccessToken();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
 
         var parentCommentId = await AddCommentAsync(viewerToken, videoId, "Root comment");
         var replyId = await AddCommentAsync(viewerToken, videoId, "Reply to root", parentCommentId);
@@ -137,9 +137,9 @@ public class AddCommentTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task AddComment_ParentNotFound_Returns404()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
         var viewerToken = await SignUpAndGetAccessToken();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", viewerToken);
         var response = await _client.PostAsJsonAsync(
@@ -172,11 +172,11 @@ public class AddCommentTests(ApiFactory factory) : IClassFixture<ApiFactory>
         return Guid.Parse(responseBody.GetProperty("data").GetProperty("commentId").GetString()!);
     }
 
-    private async Task<Guid> CreateReadyVideoAsync(string accessToken, Guid channelId)
+    private async Task<Guid> CreateReadyVideoAsync(string accessToken, string username, string channelHandle)
     {
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var createResponse = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var createResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title = "Test Video",
             tags = Array.Empty<string>(),
@@ -237,7 +237,7 @@ public class AddCommentTests(ApiFactory factory) : IClassFixture<ApiFactory>
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    private async Task<(string AccessToken, Guid ChannelId)> CreateChannelAndGetIds()
+    private async Task<(string AccessToken, string Username, string ChannelHandle)> CreateChannelAndGetIds()
     {
         var username = $"usr{Guid.NewGuid():N}"[..15];
         var email = $"user_{Guid.NewGuid():N}@example.com";
@@ -251,11 +251,9 @@ public class AddCommentTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
-        var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
 
-        return (accessToken, channelId);
+        return (accessToken, username, "test-channel");
     }
 
     private async Task<string> SignUpAndGetAccessToken()

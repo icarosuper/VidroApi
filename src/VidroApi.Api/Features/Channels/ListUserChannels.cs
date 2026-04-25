@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using CSharpFunctionalExtensions;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,7 @@ public static class ListUserChannels
     public record Command : IRequest<Result<Response, Error>>
     {
         public string Username { get; init; } = null!;
+        public Guid? RequestingUserId { get; init; }
     }
 
     public record Response
@@ -29,6 +31,7 @@ public static class ListUserChannels
             public string Name { get; init; } = null!;
             public string? Description { get; init; }
             public int FollowerCount { get; init; }
+            public bool IsFollowing { get; init; }
             public string? AvatarUrl { get; init; }
         }
     }
@@ -36,10 +39,14 @@ public static class ListUserChannels
     public static void MapEndpoint(IEndpointRouteBuilder app) =>
         app.MapGet("/v1/users/{username}/channels", async (
             string username,
+            ClaimsPrincipal user,
             IMediator mediator,
             CancellationToken ct) =>
         {
-            var cmd = new Command { Username = username };
+            Guid? requestingUserId = user.Identity?.IsAuthenticated == true
+                ? user.GetUserId()
+                : null;
+            var cmd = new Command { Username = username, RequestingUserId = requestingUserId };
             var result = await mediator.Send(cmd, ct);
             return result.ToApiResult(StatusCodes.Status200OK);
         });
@@ -63,6 +70,7 @@ public static class ListUserChannels
                 .OrderBy(c => c.CreatedAt)
                 .ToListAsync(ct);
 
+            var followedChannelIds = await FetchFollowedChannelIds(channels, cmd.RequestingUserId, ct);
             var avatarUrls = await GetAvatarUrls(channels);
             var summaries = channels.Select((c, i) => new Response.ChannelSummary
             {
@@ -71,6 +79,7 @@ public static class ListUserChannels
                 Name = c.Name,
                 Description = c.Description,
                 FollowerCount = c.FollowerCount,
+                IsFollowing = followedChannelIds.Contains(c.Id),
                 AvatarUrl = avatarUrls[i]
             }).ToList();
 
@@ -78,6 +87,19 @@ public static class ListUserChannels
             {
                 Channels = summaries
             };
+        }
+
+        private async Task<HashSet<Guid>> FetchFollowedChannelIds(
+            List<Channel> channels, Guid? requestingUserId, CancellationToken ct)
+        {
+            if (requestingUserId is null)
+                return [];
+
+            var channelIds = channels.Select(c => c.Id).ToList();
+            return await db.ChannelFollowers
+                .Where(f => f.UserId == requestingUserId && channelIds.Contains(f.ChannelId))
+                .Select(f => f.ChannelId)
+                .ToHashSetAsync(ct);
         }
 
         private async Task<List<string?>> GetAvatarUrls(List<Channel> channels)

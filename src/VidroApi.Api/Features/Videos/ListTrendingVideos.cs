@@ -45,6 +45,7 @@ public static class ListTrendingVideos
             public List<string> Tags { get; init; } = [];
             public int ViewCount { get; init; }
             public int LikeCount { get; init; }
+            public int DislikeCount { get; init; }
             public List<string> ThumbnailUrls { get; init; } = [];
             public DateTimeOffset CreatedAt { get; init; }
         }
@@ -113,6 +114,7 @@ public static class ListTrendingVideos
                 Tags = video.Tags,
                 ViewCount = video.ViewCount,
                 LikeCount = video.LikeCount,
+                DislikeCount = video.DislikeCount,
                 ThumbnailUrls = thumbnailUrls,
                 CreatedAt = video.CreatedAt
             };

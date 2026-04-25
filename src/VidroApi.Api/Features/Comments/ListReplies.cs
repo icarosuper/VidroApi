@@ -4,6 +4,7 @@ using FluentValidation;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using VidroApi.Api.Common;
 using VidroApi.Api.Extensions;
 using VidroApi.Domain.Entities;
 using VidroApi.Domain.Enums;
@@ -38,6 +39,7 @@ public static class ListReplies
             public bool IsDeleted { get; init; }
             public int LikeCount { get; init; }
             public int DislikeCount { get; init; }
+            public EnumValue? UserReaction { get; init; }
             public DateTimeOffset CreatedAt { get; init; }
             public DateTimeOffset? UpdatedAt { get; init; }
         }
@@ -83,7 +85,7 @@ public static class ListReplies
             if (!videoAccessible)
                 return CommonErrors.NotFound(nameof(Video), parentComment.VideoId);
 
-            var replies = await FetchReplies(cmd.CommentId, cmd.Cursor, cmd.Limit, ct);
+            var replies = await FetchReplies(cmd.CommentId, cmd.RequestingUserId, cmd.Cursor, cmd.Limit, ct);
 
             var nextCursor = replies.Count == cmd.Limit
                 ? replies[^1].CreatedAt
@@ -106,7 +108,7 @@ public static class ListReplies
         }
 
         private Task<List<Response.ReplySummary>> FetchReplies(
-            Guid commentId, DateTimeOffset? cursor, int limit, CancellationToken ct)
+            Guid commentId, Guid? requestingUserId, DateTimeOffset? cursor, int limit, CancellationToken ct)
         {
             var query = db.Comments.Where(c => c.ParentCommentId == commentId);
 
@@ -125,6 +127,10 @@ public static class ListReplies
                     IsDeleted = c.IsDeleted,
                     LikeCount = c.LikeCount,
                     DislikeCount = c.DislikeCount,
+                    UserReaction = db.CommentReactions
+                        .Where(cr => cr.CommentId == c.Id && cr.UserId == requestingUserId)
+                        .Select(cr => new EnumValue { Id = (int)cr.Type, Value = cr.Type.ToString() })
+                        .FirstOrDefault(),
                     CreatedAt = c.CreatedAt,
                     UpdatedAt = c.UpdatedAt
                 })

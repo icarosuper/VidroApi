@@ -31,8 +31,8 @@ public class ListCommentsTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ListComments_LimitTooLarge_Returns400()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
 
         var response = await _client.GetAsync($"/v1/videos/{videoId}/comments?sort=Recent&limit=9999");
 
@@ -42,8 +42,8 @@ public class ListCommentsTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ListComments_ZeroLimit_Returns400()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
 
         var response = await _client.GetAsync($"/v1/videos/{videoId}/comments?sort=Recent&limit=0");
 
@@ -53,9 +53,9 @@ public class ListCommentsTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ListComments_RecentSort_Returns200WithComments()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
         var viewerToken = await SignUpAndGetAccessToken();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
 
         await AddCommentAsync(viewerToken, videoId, "First comment");
         await AddCommentAsync(viewerToken, videoId, "Second comment");
@@ -73,10 +73,10 @@ public class ListCommentsTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ListComments_PopularSort_Returns200OrderedByLikes()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
         var viewerToken = await SignUpAndGetAccessToken();
         var anotherToken = await SignUpAndGetAccessToken();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
 
         var lowLikesId = await AddCommentAsync(viewerToken, videoId, "Low likes comment");
         var highLikesId = await AddCommentAsync(viewerToken, videoId, "High likes comment");
@@ -97,9 +97,9 @@ public class ListCommentsTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ListComments_RecentSort_WithCursor_ReturnsPaginatedResults()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
         var viewerToken = await SignUpAndGetAccessToken();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
 
         await AddCommentAsync(viewerToken, videoId, "Comment 1");
         await AddCommentAsync(viewerToken, videoId, "Comment 2");
@@ -123,9 +123,9 @@ public class ListCommentsTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ListComments_DeletedComment_HasNullContent()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
         var viewerToken = await SignUpAndGetAccessToken();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
 
         var commentId = await AddCommentAsync(viewerToken, videoId, "Will be deleted");
 
@@ -144,9 +144,9 @@ public class ListCommentsTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task ListComments_ExcludesReplies()
     {
-        var (ownerToken, channelId) = await CreateChannelAndGetIds();
+        var (ownerToken, username, channelHandle) = await CreateChannelAndGetIds();
         var viewerToken = await SignUpAndGetAccessToken();
-        var videoId = await CreateReadyVideoAsync(ownerToken, channelId);
+        var videoId = await CreateReadyVideoAsync(ownerToken, username, channelHandle);
 
         var parentId = await AddCommentAsync(viewerToken, videoId, "Root comment");
         await AddCommentAsync(viewerToken, videoId, "Reply", parentId);
@@ -170,11 +170,11 @@ public class ListCommentsTests(ApiFactory factory) : IClassFixture<ApiFactory>
         return Guid.Parse(responseBody.GetProperty("data").GetProperty("commentId").GetString()!);
     }
 
-    private async Task<Guid> CreateReadyVideoAsync(string accessToken, Guid channelId)
+    private async Task<Guid> CreateReadyVideoAsync(string accessToken, string username, string channelHandle)
     {
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var createResponse = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var createResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title = "Test Video",
             tags = Array.Empty<string>(),
@@ -235,7 +235,7 @@ public class ListCommentsTests(ApiFactory factory) : IClassFixture<ApiFactory>
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    private async Task<(string AccessToken, Guid ChannelId)> CreateChannelAndGetIds()
+    private async Task<(string AccessToken, string Username, string ChannelHandle)> CreateChannelAndGetIds()
     {
         var username = $"usr{Guid.NewGuid():N}"[..15];
         var email = $"user_{Guid.NewGuid():N}@example.com";
@@ -249,11 +249,9 @@ public class ListCommentsTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
-        var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
 
-        return (accessToken, channelId);
+        return (accessToken, username, "test-channel");
     }
 
     private async Task<string> SignUpAndGetAccessToken()

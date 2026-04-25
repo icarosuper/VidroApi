@@ -14,7 +14,8 @@ public static class ListPlaylistsByChannel
 {
     public record Query : IRequest<Result<PagedResult<PlaylistResponse>, Error>>
     {
-        public Guid ChannelId { get; init; }
+        public string Username { get; init; } = null!;
+        public string Handle { get; init; } = null!;
         public Guid? RequestingUserId { get; init; }
         public string? Cursor { get; init; }
         public int Limit { get; init; } = 20;
@@ -31,8 +32,9 @@ public static class ListPlaylistsByChannel
     }
 
     public static void MapEndpoint(IEndpointRouteBuilder app) =>
-        app.MapGet("/v1/channels/{channelId:guid}/playlists", async (
-            Guid channelId,
+        app.MapGet("/v1/users/{username}/channels/{handle}/playlists", async (
+            string username,
+            string handle,
             string? cursor,
             int limit,
             ClaimsPrincipal user,
@@ -45,7 +47,8 @@ public static class ListPlaylistsByChannel
 
             var query = new Query
             {
-                ChannelId = channelId,
+                Username = username,
+                Handle = handle,
                 RequestingUserId = requestingUserId,
                 Cursor = cursor,
                 Limit = Math.Max(1, Math.Min(limit, 100))
@@ -87,10 +90,15 @@ public static class ListPlaylistsByChannel
 
         private async Task<List<Domain.Entities.Playlist>> FetchPlaylists(Query query, CancellationToken ct)
         {
-            var isChannelOwner = await IsChannelOwner(query.ChannelId, query.RequestingUserId, ct);
+            var channel = await db.Channels
+                .FirstOrDefaultAsync(c => c.Handle == query.Handle && c.User.Username == query.Username, ct);
+            if (channel is null)
+                return [];
+
+            var isChannelOwner = query.RequestingUserId.HasValue && channel.UserId == query.RequestingUserId.Value;
 
             var dbQuery = db.Playlists
-                .Where(p => p.ChannelId == query.ChannelId);
+                .Where(p => p.ChannelId == channel.Id);
 
             if (!isChannelOwner)
             {
@@ -106,16 +114,6 @@ public static class ListPlaylistsByChannel
                 .OrderByDescending(p => p.CreatedAt)
                 .Take(query.Limit + 1)
                 .ToListAsync(ct);
-        }
-
-        private Task<bool> IsChannelOwner(Guid channelId, Guid? requestingUserId, CancellationToken ct)
-        {
-            if (!requestingUserId.HasValue)
-                return Task.FromResult(false);
-
-            return db.Channels
-                .Where(c => c.Id == channelId && c.UserId == requestingUserId.Value)
-                .AnyAsync(ct);
         }
     }
 }

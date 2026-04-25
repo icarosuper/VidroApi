@@ -21,7 +21,7 @@ public class MinioUploadCompletedTests(ApiFactory factory) : IClassFixture<ApiFa
     [Fact]
     public async Task MinioUploadCompleted_WithValidToken_AndUploadEvent_Returns200()
     {
-        var (_, _, videoId) = await CreateVideoAndGetIds();
+        var (_, videoId) = await CreateVideoAndGetIds();
 
         var response = await SendMinioWebhookAsync(
             eventName: "s3:ObjectCreated:Put",
@@ -34,7 +34,7 @@ public class MinioUploadCompletedTests(ApiFactory factory) : IClassFixture<ApiFa
     [Fact]
     public async Task MinioUploadCompleted_WithInvalidToken_Returns401()
     {
-        var (_, _, videoId) = await CreateVideoAndGetIds();
+        var (_, videoId) = await CreateVideoAndGetIds();
 
         var response = await SendMinioWebhookAsync(
             eventName: "s3:ObjectCreated:Put",
@@ -47,7 +47,7 @@ public class MinioUploadCompletedTests(ApiFactory factory) : IClassFixture<ApiFa
     [Fact]
     public async Task MinioUploadCompleted_WithNonUploadEvent_Returns200AndIsIgnored()
     {
-        var (_, _, videoId) = await CreateVideoAndGetIds();
+        var (_, videoId) = await CreateVideoAndGetIds();
 
         var response = await SendMinioWebhookAsync(
             eventName: "s3:ObjectRemoved:Delete",
@@ -93,7 +93,7 @@ public class MinioUploadCompletedTests(ApiFactory factory) : IClassFixture<ApiFa
     [Fact]
     public async Task MinioUploadCompleted_WhenCalledTwice_Returns200BothTimes()
     {
-        var (_, _, videoId) = await CreateVideoAndGetIds();
+        var (_, videoId) = await CreateVideoAndGetIds();
 
         var firstResponse = await SendMinioWebhookAsync(
             eventName: "s3:ObjectCreated:Put",
@@ -120,12 +120,12 @@ public class MinioUploadCompletedTests(ApiFactory factory) : IClassFixture<ApiFa
         return await _client.SendAsync(request);
     }
 
-    private async Task<(string AccessToken, Guid ChannelId, Guid VideoId)> CreateVideoAndGetIds()
+    private async Task<(string AccessToken, Guid VideoId)> CreateVideoAndGetIds()
     {
-        var (accessToken, channelId) = await CreateChannelAndGetIds();
+        var (accessToken, username, channelHandle) = await CreateChannelAndGetIds();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var createResponse = await _client.PostAsJsonAsync($"/v1/channels/{channelId}/videos", new
+        var createResponse = await _client.PostAsJsonAsync($"/v1/users/{username}/channels/{channelHandle}/videos", new
         {
             title = "Upload Test Video",
             tags = Array.Empty<string>(),
@@ -134,10 +134,10 @@ public class MinioUploadCompletedTests(ApiFactory factory) : IClassFixture<ApiFa
         var createBody = await createResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var videoId = Guid.Parse(createBody.GetProperty("data").GetProperty("videoId").GetString()!);
 
-        return (accessToken, channelId, videoId);
+        return (accessToken, videoId);
     }
 
-    private async Task<(string AccessToken, Guid ChannelId)> CreateChannelAndGetIds()
+    private async Task<(string AccessToken, string Username, string ChannelHandle)> CreateChannelAndGetIds()
     {
         var username = $"usr{Guid.NewGuid():N}"[..15];
         var email = $"user_{Guid.NewGuid():N}@example.com";
@@ -151,11 +151,9 @@ public class MinioUploadCompletedTests(ApiFactory factory) : IClassFixture<ApiFa
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var channelResponse = await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
-        var channelBody = await channelResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
-        var channelId = Guid.Parse(channelBody.GetProperty("data").GetProperty("channelId").GetString()!);
+        await _client.PostAsJsonAsync("/v1/channels", new { handle = "test-channel", name = "My Channel" });
 
-        return (accessToken, channelId);
+        return (accessToken, username, "test-channel");
     }
 
     private async Task<string> SignUpAndGetAccessToken()
