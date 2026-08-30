@@ -73,7 +73,7 @@ Each feature is self-contained file under `src/VidroApi.Api/Features/<Domain>/Fe
 
 ## Branching and release strategy
 
-- **Feature branches** — one branch per feature group, branch off `master`, merge back via PR.
+- **Commits go straight to `master`** by default (small changes, bugfixes). Only a large multi-commit feature gets a `feature/<topic>` branch — and only after asking the user. See "Onde commitar".
 - **`master`** — always deployable. CI/CD deploy `master` HEAD to staging automatically.
 - **Releases** — marked with git tag (`v1.0.0`, `v1.1.0`, etc.) on `master`. Production deploy from tags.
 - **Coordination with VidroProcessor** — when change affect shared contract (MinIO paths, Redis queue name, webhook format), both repos must be tagged and deployed together.
@@ -81,3 +81,27 @@ Each feature is self-contained file under `src/VidroApi.Api/Features/<Domain>/Fe
 ## Implementation plan
 
 See `docs/plans/2026-03-26-implementation-plan.md` for full task-by-task plan.
+
+## Padrão de mensagem de commit
+
+Conventional Commits, **em português**, só o assunto — sem corpo, sem escopo, sem rodapé (nada de `Co-authored-by`).
+
+Formato: `<tipo>: <verbo no infinitivo> <complemento>` — minúsculo depois do tipo, sem ponto final, até ~72 chars.
+
+Tipos usados no repo (frequência real): `feat` > `chore` > `fix` > `refactor` > `docs` / `test`.
+
+- `feat` — funcionalidade nova ou ampliada
+- `fix` — correção de bug/comportamento
+- `chore` — docs, README, migrations, scaffold, reorganização sem lógica
+- `refactor` — renomear/reestruturar sem mudar comportamento
+- `docs` / `test` — quando a mudança é só documentação ou só teste
+
+Exemplos do histórico: `feat: adicionar upload de avatar do canal`, `fix: corrigir botão de reações`, `chore: atualizar README`, `refactor: renomear projeto`.
+
+Título de PR (squash merge): `Feature/nome-da-branch (#N)`.
+
+### Onde commitar
+
+- **Padrão: direto na `master`.** Coisa pequena e bugfix não abre branch.
+- **Exceção: feature grande** (vários commits). Aí **pergunte ao usuário** se é para criar `feature/<topic>` ou mandar direto para `master` — nunca decida sozinho.
+- `master` sempre deployável; produção sai de tags `vX.Y.Z`.
