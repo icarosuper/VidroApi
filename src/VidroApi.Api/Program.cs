@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using VidroApi.Api.BackgroundServices;
@@ -8,6 +9,7 @@ using VidroApi.Api.Middleware;
 using VidroApi.Api;
 using VidroApi.Application;
 using VidroApi.Infrastructure;
+using VidroApi.Infrastructure.Persistence;
 using VidroApi.Infrastructure.Settings;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -45,13 +47,21 @@ var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
     policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
 builder.Services.AddOpenApi();
+builder.Services.AddHealthChecks();
 builder.Services.AddHostedService<VideoReconciliationService>();
 builder.Services.AddHostedService<StorageCleanupService>();
 
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
+{
     app.MapOpenApi();
+
+    // `docker compose up` must yield a working API, and the compose Postgres starts empty.
+    // Outside Development migrations stay a deliberate, manual deploy step.
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+}
 
 // CorrelationId must come first so the ID is in scope for all subsequent logs,
 // including Serilog's own request log entry.
@@ -66,6 +76,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapAllEndpoints();
+// Liveness only — no dependency probes, so a flapping Redis can't take the container down.
+app.MapHealthChecks("/health");
 
 if (allowedOrigins.Length == 0)
     Log.Warning("Cors:AllowedOrigins is empty — every cross-origin browser request will be blocked.");

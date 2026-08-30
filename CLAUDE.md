@@ -45,8 +45,11 @@ dotnet test tests/VidroApi.UnitTests --filter "FullyQualifiedName~ClassName.Meth
 dotnet ef migrations add <DescriptionMigration> --project src/VidroApi.Infrastructure --startup-project src/VidroApi.Api --output-dir Persistence/Migrations
 dotnet ef database update --project src/VidroApi.Infrastructure --startup-project src/VidroApi.Api
 
-# Start dependencies
-docker-compose up -d postgres redis minio
+# Start dependencies (compose lives in the parent dir, alongside the three repos)
+docker compose -f ../docker-compose.yml up -d postgres redis minio
+
+# Or the whole stack — API, front, processor, observability
+cd .. && docker compose up -d --build
 ```
 
 ## Architecture overview

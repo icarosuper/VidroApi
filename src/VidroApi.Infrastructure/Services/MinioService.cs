@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Minio;
 using Minio.DataModel.Args;
@@ -6,15 +7,20 @@ using VidroApi.Infrastructure.Settings;
 
 namespace VidroApi.Infrastructure.Services;
 
-public class MinioService(IMinioClient minioClient, IOptions<MinioSettings> options) : IMinioService
+public class MinioService(
+    IMinioClient minioClient,
+    [FromKeyedServices(MinioService.PresignClientKey)] IMinioClient presignClient,
+    IOptions<MinioSettings> options) : IMinioService
 {
+    public const string PresignClientKey = "minio-presign";
+
     private readonly MinioSettings _settings = options.Value;
 
     public async Task<(string Url, DateTimeOffset ExpiresAt)> GenerateUploadUrlAsync(
         string objectKey, TimeSpan ttl, CancellationToken ct = default)
     {
         var expiresAt = DateTimeOffset.UtcNow.Add(ttl);
-        var url = await minioClient.PresignedPutObjectAsync(
+        var url = await presignClient.PresignedPutObjectAsync(
             new PresignedPutObjectArgs()
                 .WithBucket(_settings.BucketName)
                 .WithObject(objectKey)
@@ -25,7 +31,7 @@ public class MinioService(IMinioClient minioClient, IOptions<MinioSettings> opti
     public async Task<string> GenerateDownloadUrlAsync(
         string objectKey, TimeSpan ttl, CancellationToken ct = default)
     {
-        return await minioClient.PresignedGetObjectAsync(
+        return await presignClient.PresignedGetObjectAsync(
             new PresignedGetObjectArgs()
                 .WithBucket(_settings.BucketName)
                 .WithObject(objectKey)

@@ -13,12 +13,23 @@ Built with .NET 10, Clean Architecture + Vertical Slice.
 
 ## Quick Start
 
+Whole stack (API + front + processor + infra) from the parent directory:
+
 ```bash
-docker-compose up -d postgres redis minio
+cd .. && docker compose up -d --build
+```
+
+API only, against the shared infra:
+
+```bash
+docker compose -f ../docker-compose.yml up -d postgres redis minio
 dotnet run --project src/VidroApi.Api
 ```
 
-Default: `http://localhost:5000`
+Default: `http://localhost:5000` · health: `/health` · OpenAPI: `/openapi/v1.json`
+
+In `Development` the API applies pending EF migrations at startup, so an empty
+Postgres is fine. Outside `Development` run `dotnet ef database update` yourself.
 
 ## Commands
 
