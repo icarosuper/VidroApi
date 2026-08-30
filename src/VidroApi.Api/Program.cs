@@ -38,6 +38,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+
+// Browser calls the API cross-origin (front on :3000, API on :5000). Bearer token
+// travels in a header, not a cookie, so no AllowCredentials is needed.
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
+    policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
 builder.Services.AddOpenApi();
 builder.Services.AddHostedService<VideoReconciliationService>();
 builder.Services.AddHostedService<StorageCleanupService>();
@@ -53,10 +59,16 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseSerilogRequestLogging();
 
 app.UseMiddleware<ExceptionMiddleware>();
+// Before authentication so 401 responses also carry the CORS headers — otherwise the
+// browser reports an opaque CORS error instead of the real status.
+app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapAllEndpoints();
+
+if (allowedOrigins.Length == 0)
+    Log.Warning("Cors:AllowedOrigins is empty — every cross-origin browser request will be blocked.");
 
 app.Lifetime.ApplicationStarted.Register(() =>
     Log.Information("Application listening on: {Urls}", string.Join(", ", app.Urls)));

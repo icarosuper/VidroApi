@@ -37,6 +37,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Webhook:Secret", "test-webhook-secret");
         builder.UseSetting("Webhook:MinioUploadToken", "test-minio-upload-token");
         builder.UseSetting("Api:BaseUrl", "http://localhost");
+        builder.UseSetting("Cors:AllowedOrigins:0", "http://localhost:3000");
 
         builder.ConfigureServices(services =>
         {
