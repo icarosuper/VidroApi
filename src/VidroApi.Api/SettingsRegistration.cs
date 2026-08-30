@@ -21,6 +21,11 @@ public static class SettingsRegistration
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddOptions<RateLimitSettings>()
+            .BindConfiguration("RateLimit")
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.AddOptions<VideoSettings>()
             .BindConfiguration("VideoSettings")
             .ValidateDataAnnotations()

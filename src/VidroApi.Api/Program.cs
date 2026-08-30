@@ -1,5 +1,7 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
@@ -48,20 +50,37 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
     policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
+
+// Credential endpoints are the cheap target for brute force, so they get a per-IP budget.
+// Everything else stays unlimited — a global limiter would throttle legitimate browsing.
+var rateLimits = builder.Configuration.GetSection("RateLimit").Get<RateLimitSettings>()!;
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy(RateLimitSettings.AuthPolicy, http =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            // Behind a proxy this is the proxy's IP until ForwardedHeaders is configured.
+            http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = rateLimits.AuthPermitLimit,
+                Window = TimeSpan.FromSeconds(rateLimits.AuthWindowSeconds)
+            }));
+});
 builder.Services.AddHostedService<VideoReconciliationService>();
 builder.Services.AddHostedService<StorageCleanupService>();
 
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
-{
     app.MapOpenApi();
 
-    // `docker compose up` must yield a working API, and the compose Postgres starts empty.
-    // Outside Development migrations stay a deliberate, manual deploy step.
-    using var scope = app.Services.CreateScope();
+// Pending migrations are applied on every startup, in every environment: deploying the
+// image is the whole deploy. Note this makes the schema change before the old instance
+// stops, so migrations must stay backward-compatible with the running version, and two
+// instances booting at once both try to migrate (EF takes a lock, the loser waits).
+using (var scope = app.Services.CreateScope())
     await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
-}
 
 // CorrelationId must come first so the ID is in scope for all subsequent logs,
 // including Serilog's own request log entry.
@@ -72,6 +91,7 @@ app.UseMiddleware<ExceptionMiddleware>();
 // Before authentication so 401 responses also carry the CORS headers — otherwise the
 // browser reports an opaque CORS error instead of the real status.
 app.UseCors();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

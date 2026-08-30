@@ -50,6 +50,15 @@ All implemented features and their file paths. Read this before searching for a 
 | MinioUploadCompleted | `Videos/MinioUploadCompleted.cs` | `POST /webhooks/minio-upload-completed` |
 | VideoProcessed | `Videos/VideoProcessed.cs` | `POST /webhooks/video-processed` |
 
+## Operational endpoints
+
+Not features — mapped directly in `Program.cs`.
+
+| Endpoint | What |
+|---|---|
+| `GET /health` | Liveness only, no dependency probes |
+| `GET /openapi/v1.json` | OpenAPI document, Development only |
+
 ## Comments — `src/VidroApi.Api/Features/Comments/`
 
 | Feature | File | Endpoint |

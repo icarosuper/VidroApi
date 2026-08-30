@@ -31,6 +31,8 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("MinIO:SecretKey", "test-secret-key");
         builder.UseSetting("MinIO:BucketName", "test-bucket");
         builder.UseSetting("MinIO:UploadUrlTtlHours", "1");
+        builder.UseSetting("RateLimit:AuthPermitLimit", "10000");
+        builder.UseSetting("RateLimit:AuthWindowSeconds", "60");
         builder.UseSetting("ChannelSettings:MaxChannelsPerUser", "10");
         builder.UseSetting("VideoSettings:MaxTagsPerVideo", "10");
         builder.UseSetting("VideoSettings:ReconciliationIntervalMinutes", "60");

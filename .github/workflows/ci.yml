@@ -1,9 +1,12 @@
 name: CI
 
+# Commits land straight on master here (see CLAUDE.md), so CI has to run on push too —
+# a PR-only trigger almost never fired.
 on:
-  pull_request:
+  push:
     branches:
       - master
+  pull_request:
 
 jobs:
   test:

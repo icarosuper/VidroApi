@@ -3,6 +3,7 @@ using CSharpFunctionalExtensions;
 using VidroApi.Application.Common.Logging.Attributes;
 using FluentValidation;
 using Mediator;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using VidroApi.Api.Extensions;
@@ -53,7 +54,7 @@ public static class SignIn
         {
             var result = await mediator.Send(req, ct);
             return result.ToApiResult(StatusCodes.Status200OK);
-        });
+        }).RequireRateLimiting(RateLimitSettings.AuthPolicy);
 
     public class Handler(
         AppDbContext db,

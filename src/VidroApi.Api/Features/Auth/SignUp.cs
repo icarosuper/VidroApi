@@ -3,11 +3,13 @@ using CSharpFunctionalExtensions;
 using VidroApi.Application.Common.Logging.Attributes;
 using FluentValidation;
 using Mediator;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using VidroApi.Api.Extensions;
 using VidroApi.Application.Abstractions;
 using VidroApi.Domain.Entities;
 using VidroApi.Domain.Errors;
+using VidroApi.Infrastructure.Settings;
 using VidroApi.Domain.Errors.EntityErrors;
 using VidroApi.Infrastructure.Persistence;
 
@@ -56,7 +58,7 @@ public static class SignUp
         {
             var result = await mediator.Send(req, ct);
             return result.ToApiResult(StatusCodes.Status201Created);
-        });
+        }).RequireRateLimiting(RateLimitSettings.AuthPolicy);
 
     public class Handler(AppDbContext db, IDateTimeProvider clock)
         : IRequestHandler<Request, Result<Response, Error>>

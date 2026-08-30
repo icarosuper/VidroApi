@@ -28,8 +28,9 @@ dotnet run --project src/VidroApi.Api
 
 Default: `http://localhost:5000` · health: `/health` · OpenAPI: `/openapi/v1.json`
 
-In `Development` the API applies pending EF migrations at startup, so an empty
-Postgres is fine. Outside `Development` run `dotnet ef database update` yourself.
+The API applies pending EF migrations at startup in **every** environment, so an empty
+Postgres is fine and deploying the image is the whole deploy. Migrations therefore must
+stay backward-compatible with the version still running during a rollout.
 
 ## Commands
 

@@ -120,6 +120,9 @@ VideoProcessor = separate service at `../VideoProcessor`. Integration points:
 - `MinIO` — endpoint, credentials, bucket, `UploadUrlTtlHours`
 - `Jwt` — secret, token expiry
 - `VideoSettings:MaxTagsPerVideo` — validated in slices, not hardcoded
+- `RateLimit:AuthPermitLimit` / `RateLimit:AuthWindowSeconds` — per-IP budget on `SignIn`/`SignUp`
+  (policy `RateLimitSettings.AuthPolicy`, fixed window, 429 on rejection). Only those two
+  endpoints are limited; a global limiter would throttle normal browsing
 - `VideoSettings:ReconciliationIntervalMinutes` — interval for `VideoReconciliationService`
 - `VideoSettings:ProcessingTimeoutMinutes` — how long a video may stay in `Processing` before
   reconciliation marks it `Failed`. Must stay above the Processor's job budget + orphan-requeue
