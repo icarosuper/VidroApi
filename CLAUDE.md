@@ -74,8 +74,8 @@ Each feature is self-contained file under `src/VidroApi.Api/Features/<Domain>/Fe
 ## Branching and release strategy
 
 - **Commits go straight to `master`** by default (small changes, bugfixes). Only a large multi-commit feature gets a `feature/<topic>` branch — and only after asking the user. See "Onde commitar".
-- **`master`** — always deployable. CI/CD deploy `master` HEAD to staging automatically.
-- **Releases** — marked with git tag (`v1.0.0`, `v1.1.0`, etc.) on `master`. Production deploy from tags.
+- **`master`** — always deployable. **No deploy pipeline exists yet**: `.github/workflows/ci.yml` only builds and tests on PRs to `master`. Deploys are manual.
+- **Releases** — intended strategy: git tag (`v1.0.0`, `v1.1.0`, etc.) on `master`, production deploy from tags. Not in use yet — the repo has no tags.
 - **Coordination with VidroProcessor** — when change affect shared contract (MinIO paths, Redis queue name, webhook format), both repos must be tagged and deployed together.
 
 ## Implementation plan
@@ -104,4 +104,4 @@ Título de PR (squash merge): `Feature/nome-da-branch (#N)`.
 
 - **Padrão: direto na `master`.** Coisa pequena e bugfix não abre branch.
 - **Exceção: feature grande** (vários commits). Aí **pergunte ao usuário** se é para criar `feature/<topic>` ou mandar direto para `master` — nunca decida sozinho.
-- `master` sempre deployável; produção sai de tags `vX.Y.Z`.
+- `master` sempre deployável; produção sai de tags `vX.Y.Z` (estratégia pretendida — ainda não há tag nenhuma no repo).

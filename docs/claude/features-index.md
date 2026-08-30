@@ -35,11 +35,11 @@ All implemented features and their file paths. Read this before searching for a 
 
 | Feature | File | Endpoint |
 |---|---|---|
-| CreateVideo | `Videos/CreateVideo.cs` | `POST /v1/channels/{channelId}/videos` |
+| CreateVideo | `Videos/CreateVideo.cs` | `POST /v1/users/{username}/channels/{handle}/videos` |
 | GetVideo | `Videos/GetVideo.cs` | `GET /v1/videos/{videoId}` |
 | UpdateVideo | `Videos/UpdateVideo.cs` | `PUT /v1/videos/{videoId}` |
 | DeleteVideo | `Videos/DeleteVideo.cs` | `DELETE /v1/videos/{videoId}` |
-| ListChannelVideos | `Videos/ListChannelVideos.cs` | `GET /v1/channels/{channelId}/videos` |
+| ListChannelVideos | `Videos/ListChannelVideos.cs` | `GET /v1/users/{username}/channels/{handle}/videos` |
 | ListFeedVideos | `Videos/ListFeedVideos.cs` | `GET /v1/feed` |
 | ListTrendingVideos | `Videos/ListTrendingVideos.cs` | `GET /v1/videos/trending` |
 | SearchVideos | `Videos/SearchVideos.cs` | `GET /v1/videos/search` |
@@ -70,7 +70,7 @@ All implemented features and their file paths. Read this before searching for a 
 | GetPlaylist | `Playlists/GetPlaylist.cs` | `GET /v1/playlists/{playlistId}` |
 | UpdatePlaylist | `Playlists/UpdatePlaylist.cs` | `PUT /v1/playlists/{playlistId}` |
 | DeletePlaylist | `Playlists/DeletePlaylist.cs` | `DELETE /v1/playlists/{playlistId}` |
-| ListPlaylistsByChannel | `Playlists/ListPlaylistsByChannel.cs` | `GET /v1/channels/{channelId}/playlists` |
-| ListPlaylistsByUser | `Playlists/ListPlaylistsByUser.cs` | `GET /v1/users/{userId}/playlists` |
+| ListPlaylistsByChannel | `Playlists/ListPlaylistsByChannel.cs` | `GET /v1/users/{username}/channels/{handle}/playlists` |
+| ListPlaylistsByUser | `Playlists/ListPlaylistsByUser.cs` | `GET /v1/users/{username}/playlists` |
 | AddVideoToPlaylist | `Playlists/AddVideoToPlaylist.cs` | `POST /v1/playlists/{playlistId}/items` |
 | RemoveVideoFromPlaylist | `Playlists/RemoveVideoFromPlaylist.cs` | `DELETE /v1/playlists/{playlistId}/items/{videoId}` |
