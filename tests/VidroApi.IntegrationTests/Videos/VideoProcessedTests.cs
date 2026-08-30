@@ -113,18 +113,61 @@ public class VideoProcessedTests(ApiFactory factory) : IClassFixture<ApiFactory>
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
-    private async Task<HttpResponseMessage> SendVideoProcessedWebhookAsync(Guid videoId, bool success, string secret)
+    // BUG-1: non-critical steps (thumbnails/audio/preview/streaming) can fail while the
+    // Processor still reports success, and `analyze` failing drops metadata entirely.
+    // None of that may 500 the handler — a 500 leaves the video in Processing forever.
+    [Fact]
+    public async Task VideoProcessed_WithSuccess_ButNoOptionalArtifactsOrMetadata_VideoBecomesReady()
     {
-        var payload = success ? BuildSuccessPayload(videoId) : BuildFailurePayload(videoId);
-        var payloadBytes = Encoding.UTF8.GetBytes(payload);
-        var signature = ComputeHmacSignature(payloadBytes, secret);
+        var (_, videoId) = await CreateProcessingVideo();
 
+        var payload = JsonSerializer.Serialize(new
+        {
+            videoId,
+            success = true,
+            processedPath = $"processed/{videoId}_processed"
+        });
+
+        var response = await SendRawWebhookAsync(payload, WebhookSecret);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var getResponse = await _client.GetAsync($"/v1/videos/{videoId}");
+        var body = await getResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        var data = body.GetProperty("data");
+        data.GetProperty("status").GetProperty("value").GetString().Should().Be("Ready");
+        data.GetProperty("thumbnailUrls").GetArrayLength().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task VideoProcessed_WithSuccess_ButNoProcessedPath_VideoBecomesFailed()
+    {
+        var (_, videoId) = await CreateProcessingVideo();
+
+        var payload = JsonSerializer.Serialize(new { videoId, success = true });
+
+        var response = await SendRawWebhookAsync(payload, WebhookSecret);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var getResponse = await _client.GetAsync($"/v1/videos/{videoId}");
+        var body = await getResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        body.GetProperty("data").GetProperty("status").GetProperty("value").GetString().Should().Be("Failed");
+    }
+
+    private async Task<HttpResponseMessage> SendRawWebhookAsync(string payload, string secret)
+    {
+        var signature = ComputeHmacSignature(Encoding.UTF8.GetBytes(payload), secret);
         var request = new HttpRequestMessage(HttpMethod.Post, "/webhooks/video-processed")
         {
             Content = new StringContent(payload, Encoding.UTF8, "application/json")
         };
         request.Headers.Add("X-Webhook-Signature", $"sha256={signature}");
         return await _client.SendAsync(request);
+    }
+
+    private async Task<HttpResponseMessage> SendVideoProcessedWebhookAsync(Guid videoId, bool success, string secret)
+    {
+        var payload = success ? BuildSuccessPayload(videoId) : BuildFailurePayload(videoId);
+        return await SendRawWebhookAsync(payload, secret);
     }
 
     private static string BuildSuccessPayload(Guid videoId) =>

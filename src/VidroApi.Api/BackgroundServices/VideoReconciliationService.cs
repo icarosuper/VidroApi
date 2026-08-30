@@ -22,6 +22,7 @@ public class VideoReconciliationService(
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
             await ReconcileStaleUploadsAsync(stoppingToken);
+            await ReconcileStuckProcessingAsync(stoppingToken);
         }
     }
 
@@ -54,6 +55,42 @@ public class VideoReconciliationService(
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "Error during video upload reconciliation");
+        }
+    }
+
+    // Safety net for BUG-1's failure shape: the Processor acks the job, then its webhook
+    // never lands (API error, crash, network) — nothing retries and the video would sit in
+    // Processing forever.
+    private async Task ReconcileStuckProcessingAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+            var now = clock.UtcNow;
+            var cutoff = now.AddMinutes(-videoOptions.Value.ProcessingTimeoutMinutes);
+
+            var stuckVideos = await db.Videos
+                .Where(v => v.Status == VideoStatus.Processing && (v.UpdatedAt ?? v.CreatedAt) < cutoff)
+                .ToListAsync(ct);
+
+            if (stuckVideos.Count == 0)
+                return;
+
+            logger.LogWarning(
+                "Found {Count} videos stuck in Processing past {Minutes}min — marking as failed",
+                stuckVideos.Count, videoOptions.Value.ProcessingTimeoutMinutes);
+
+            foreach (var video in stuckVideos)
+                video.MarkAsFailed(now);
+
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Error during stuck-processing reconciliation");
         }
     }
 

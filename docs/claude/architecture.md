@@ -121,6 +121,9 @@ VideoProcessor = separate service at `../VideoProcessor`. Integration points:
 - `Jwt` — secret, token expiry
 - `VideoSettings:MaxTagsPerVideo` — validated in slices, not hardcoded
 - `VideoSettings:ReconciliationIntervalMinutes` — interval for `VideoReconciliationService`
+- `VideoSettings:ProcessingTimeoutMinutes` — how long a video may stay in `Processing` before
+  reconciliation marks it `Failed`. Must stay above the Processor's job budget + orphan-requeue
+  threshold (18min + 19min at `PROCESSING_TIMEOUT_SCALE=1`); default 45
 - `TrendingSettings` — score weights + time decay for `GET /videos/trending`
 - `Webhook:Secret` — HMAC secret shared with VideoProcessor
 - `StorageCleanupSettings:IntervalMinutes`, `StorageCleanupSettings:BatchSize` — controls `StorageCleanupService`

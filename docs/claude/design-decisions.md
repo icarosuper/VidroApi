@@ -6,6 +6,11 @@
 - **Declare composite indexes for every common query pattern** — when query filter 2+ columns together (e.g. `WHERE video_id = ? AND parent_comment_id IS NULL`, `WHERE status = ? AND visibility = ?`), add composite `HasIndex` in entity `IEntityTypeConfiguration`. EF Core auto-create single-column FK indexes, never composite. Add index in config file with rest of mapping, not in migration.
 - **Videos belong to Channels, not Users** — `Video.ChannelId → Channel.UserId`. User can own multiple channels.
 - **`VideoArtifacts` and `VideoMetadata` are separate tables** — 1:1 with `Videos`, nullable until processing complete.
+- **Only `ProcessedPath` is a required artifact.** The Processor reports success even when a
+  non-critical step fails, so a success webhook may omit `previewPath`, `hlsPath`, `audioPath`,
+  `thumbnailPaths` (→ empty list) or the whole metadata block (`analyze` is semi-critical).
+  `VideoProcessed` must never throw on those — a 500 there strands the video in `Processing`.
+  A success payload without `processedPath` is treated as a failure, not an error.
 - **`DeleteBehavior.Cascade` is global** — `OnModelCreating` enforce `Cascade` on every FK by default. Delete parent auto-delete all dependents at DB level (PostgreSQL `ON DELETE CASCADE`), atomic — all delete or nothing, same transaction. Use `DeleteBehavior.Restrict` only to block deletion when dependents exist (shared data, peer relationships). Use `DeleteBehavior.SetNull` when child survive without parent (e.g. `PlaylistItem.VideoId`).
 - **MinIO cleanup go through `PendingStorageCleanup`** — never call `IMinioService` direct from delete handler. Instead stage `PendingStorageCleanup` records (one per object path or prefix) inside same transaction that delete DB rows. `StorageCleanupService` process table in background. Use `isPrefix: true` for paths needing `DeleteObjectsByPrefixAsync` (HLS segments, thumbnails folder).
 - **Single presigned PUT URL for upload** — multipart planned, not implemented. See `docs/plans/` for future work.

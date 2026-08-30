@@ -92,7 +92,10 @@ public static class VideoProcessed
 
             var now = clock.UtcNow;
 
-            if (cmd.Success)
+            // A "success" without the transcode output is not a success — persisting it
+            // would throw and leave the video stuck in Processing forever.
+            var hasProcessedVideo = !string.IsNullOrWhiteSpace(cmd.ProcessedPath);
+            if (cmd.Success && hasProcessedVideo)
                 PersistSuccessfulProcessing(video, cmd, now);
             else
                 video.MarkAsFailed(now);
@@ -104,27 +107,35 @@ public static class VideoProcessed
 
         private void PersistSuccessfulProcessing(Video video, Command cmd, DateTimeOffset now)
         {
+            // Non-critical steps (thumbnails/audio/preview/streaming) may fail while the
+            // job still reports success, so every optional artifact can be absent.
             var artifacts = new VideoArtifacts(
                 cmd.VideoId,
                 cmd.ProcessedPath!,
-                cmd.PreviewPath!,
-                cmd.HlsPath!,
-                cmd.AudioPath!,
-                cmd.ThumbnailPaths!,
+                cmd.PreviewPath,
+                cmd.HlsPath,
+                cmd.AudioPath,
+                cmd.ThumbnailPaths,
                 now);
 
-            var metadata = new VideoMetadata(
+            video.MarkAsReady(now);
+            db.VideoArtifacts.Add(artifacts);
+
+            // `analyze` is semi-critical: when it fails the webhook carries no metadata at all.
+            var hasMetadata = cmd.FileSizeBytes is not null && cmd.DurationSeconds is not null
+                && cmd.Width is not null && cmd.Height is not null
+                && !string.IsNullOrWhiteSpace(cmd.Codec);
+            if (!hasMetadata)
+                return;
+
+            db.VideoMetadata.Add(new VideoMetadata(
                 cmd.VideoId,
                 cmd.FileSizeBytes!.Value,
                 cmd.DurationSeconds!.Value,
                 cmd.Width!.Value,
                 cmd.Height!.Value,
                 cmd.Codec!,
-                now);
-
-            video.MarkAsReady(now);
-            db.VideoArtifacts.Add(artifacts);
-            db.VideoMetadata.Add(metadata);
+                now));
         }
     }
 }
